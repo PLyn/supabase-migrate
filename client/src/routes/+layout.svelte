@@ -15,7 +15,7 @@
 				<!-- Title on the left -->
 				<h1 class="site-title">Supabase M&M</h1>
 
-				<nav class="nav" role="navigation" aria-label="Main navigation">
+				<nav class="nav" aria-label="Main navigation">
 					<a href="/" class="nav-link" aria-current="page"> Home </a>
 					<a href="/migrate" class="nav-link"> Migrate </a>
 					<a href="/monitor" class="nav-link"> Monitor </a>
@@ -30,7 +30,7 @@
 	</header>
 
 	<!-- Main content -->
-	<main class="main" role="main">
+	<main class="main">
 		<slot />
 	</main>
 </div>

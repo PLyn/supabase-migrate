@@ -1,5 +1,5 @@
-use crate::models::migrate::{ProjectConfig, DiffEntry};
 use crate::models::AppState;
+use crate::models::migrate::{DiffEntry, ProjectConfig};
 
 use axum::{
     extract::{Query, State},
@@ -49,8 +49,13 @@ impl IntoResponse for PreviewError {
         let (status, error_message) = match self {
             PreviewError::Unauthorized => (StatusCode::UNAUTHORIZED, "Unauthorized".to_string()),
             PreviewError::ApiError(msg) => (StatusCode::INTERNAL_SERVER_ERROR, msg),
-            PreviewError::JsonError(err) => (StatusCode::BAD_REQUEST, format!("JSON error: {}", err)),
-            PreviewError::SessionError(msg) => (StatusCode::INTERNAL_SERVER_ERROR, format!("Session error: {}", msg)),
+            PreviewError::JsonError(err) => {
+                (StatusCode::BAD_REQUEST, format!("JSON error: {}", err))
+            }
+            PreviewError::SessionError(msg) => (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("Session error: {}", msg),
+            ),
         };
 
         let body = Json(ErrorResponse {
@@ -72,7 +77,6 @@ pub async fn preview_handler(
     Query(params): Query<PreviewQuery>,
     session: Session,
 ) -> Result<impl IntoResponse, PreviewError> {
-
     // TODO: Check authentication
 
     let mut project_config: Vec<ProjectConfig> = Vec::new();
@@ -80,57 +84,83 @@ pub async fn preview_handler(
 
     // Check Auth config
     if params.auth.unwrap_or(false) {
-        let source_config = mgmt_api_get(&session, format!("/projects/{}/config/auth", params.source_id))
-            .await
-            .map_err(|e| PreviewError::ApiError(format!("Failed to get auth config: {:?}", e)))?;
-        let dest_config = mgmt_api_get(&session,format!("/projects/{}/config/auth", params.dest_id))
-            .await
-            .map_err(|e| PreviewError::ApiError(format!("Failed to get auth config: {:?}", e)))?;
+        let source_config = mgmt_api_get(
+            &session,
+            format!("/projects/{}/config/auth", params.source_id),
+        )
+        .await
+        .map_err(|e| PreviewError::ApiError(format!("Failed to get auth config: {:?}", e)))?;
+        let dest_config = mgmt_api_get(
+            &session,
+            format!("/projects/{}/config/auth", params.dest_id),
+        )
+        .await
+        .map_err(|e| PreviewError::ApiError(format!("Failed to get auth config: {:?}", e)))?;
         config_json.push(("Auth".to_string(), source_config, dest_config));
     }
 
     // Check Postgrest config
     if params.postgrest.unwrap_or(false) {
-        let source_config = mgmt_api_get(&session,format!("/projects/{}/postgrest", params.source_id))
+        let source_config = mgmt_api_get(
+            &session,
+            format!("/projects/{}/postgrest", params.source_id),
+        )
+        .await
+        .map_err(|e| PreviewError::ApiError(format!("Failed to get postgrest config: {:?}", e)))?;
+        let dest_config = mgmt_api_get(&session, format!("/projects/{}/postgrest", params.dest_id))
             .await
-            .map_err(|e| PreviewError::ApiError(format!("Failed to get postgrest config: {:?}", e)))?;
-        let dest_config = mgmt_api_get(&session,format!("/projects/{}/postgrest", params.dest_id))
-            .await
-            .map_err(|e| PreviewError::ApiError(format!("Failed to get postgrest config: {:?}", e)))?;
+            .map_err(|e| {
+                PreviewError::ApiError(format!("Failed to get postgrest config: {:?}", e))
+            })?;
         config_json.push(("Postgrest".to_string(), source_config, dest_config));
     }
 
     // Check Edge Functions config
     if params.edge_functions.unwrap_or(false) {
-        let source_config = mgmt_api_get(&session,format!("/projects/{}/functions", params.source_id))
+        let source_config = mgmt_api_get(
+            &session,
+            format!("/projects/{}/functions", params.source_id),
+        )
+        .await
+        .map_err(|e| PreviewError::ApiError(format!("Failed to get functions config: {:?}", e)))?;
+        let dest_config = mgmt_api_get(&session, format!("/projects/{}/functions", params.dest_id))
             .await
-            .map_err(|e| PreviewError::ApiError(format!("Failed to get functions config: {:?}", e)))?;
-        let dest_config = mgmt_api_get(&session,format!("/projects/{}/functions", params.dest_id))
-            .await
-            .map_err(|e| PreviewError::ApiError(format!("Failed to get functions config: {:?}", e)))?;
+            .map_err(|e| {
+                PreviewError::ApiError(format!("Failed to get functions config: {:?}", e))
+            })?;
         config_json.push(("EdgeFunctions".to_string(), source_config, dest_config));
     }
 
     // Check Secrets config
     if params.secrets.unwrap_or(false) {
-        let source_config = mgmt_api_get(&session,format!("/projects/{}/secrets", params.source_id))
+        let source_config =
+            mgmt_api_get(&session, format!("/projects/{}/secrets", params.source_id))
+                .await
+                .map_err(|e| {
+                    PreviewError::ApiError(format!("Failed to get secrets config: {:?}", e))
+                })?;
+        let dest_config = mgmt_api_get(&session, format!("/projects/{}/secrets", params.dest_id))
             .await
-            .map_err(|e| PreviewError::ApiError(format!("Failed to get secrets config: {:?}", e)))?;
-        let dest_config = mgmt_api_get(&session,format!("/projects/{}/secrets", params.dest_id))
-            .await
-            .map_err(|e| PreviewError::ApiError(format!("Failed to get secrets config: {:?}", e)))?;
+            .map_err(|e| {
+                PreviewError::ApiError(format!("Failed to get secrets config: {:?}", e))
+            })?;
         config_json.push(("Secrets".to_string(), source_config, dest_config));
     }
 
     // Check Postgres config
     if params.postgres.unwrap_or(false) {
         let url = "/config/database/postgres".to_string();
-        let source_config = mgmt_api_get(&session,format!("/projects/{}{}", params.source_id, url))
+        let source_config =
+            mgmt_api_get(&session, format!("/projects/{}{}", params.source_id, url))
+                .await
+                .map_err(|e| {
+                    PreviewError::ApiError(format!("Failed to get postgres config: {:?}", e))
+                })?;
+        let dest_config = mgmt_api_get(&session, format!("/projects/{}{}", params.dest_id, url))
             .await
-            .map_err(|e| PreviewError::ApiError(format!("Failed to get postgres config: {:?}", e)))?;
-        let dest_config = mgmt_api_get(&session,format!("/projects/{}{}", params.dest_id, url))
-            .await
-            .map_err(|e| PreviewError::ApiError(format!("Failed to get postgres config: {:?}", e)))?;
+            .map_err(|e| {
+                PreviewError::ApiError(format!("Failed to get postgres config: {:?}", e))
+            })?;
         config_json.push(("Postgres".to_string(), source_config, dest_config));
     }
 
@@ -159,17 +189,14 @@ pub async fn preview_handler(
 
 pub async fn mgmt_api_get(session: &Session, url: String) -> Result<String, PreviewError> {
     use reqwest::header::{ACCEPT, AUTHORIZATION};
-    
+
     let constructed_url = format!("https://api.supabase.com/v1{}", url);
-    
-    let token_option: Option<String> = session
-        .get("supabase_access_token")
-        .await
-        .map_err(|e| PreviewError::SessionError(format!("Failed to get token from session: {:?}", e)))?;
-    
-    let token = token_option.ok_or_else(|| {
-        PreviewError::Unauthorized
+
+    let token_option: Option<String> = session.get("supabase_access_token").await.map_err(|e| {
+        PreviewError::SessionError(format!("Failed to get token from session: {:?}", e))
     })?;
+
+    let token = token_option.ok_or_else(|| PreviewError::Unauthorized)?;
 
     let client = reqwest::Client::new();
     let api_response = client
@@ -181,10 +208,9 @@ pub async fn mgmt_api_get(session: &Session, url: String) -> Result<String, Prev
         .map_err(|e| PreviewError::ApiError(format!("Request failed: {:?}", e)))?;
 
     if api_response.status().is_success() {
-        api_response
-            .text()
-            .await
-            .map_err(|e| PreviewError::ApiError(format!("Error reading response body as text: {:?}", e)))
+        api_response.text().await.map_err(|e| {
+            PreviewError::ApiError(format!("Error reading response body as text: {:?}", e))
+        })
     } else {
         let status_code = api_response.status().as_u16();
         let error_text = api_response
@@ -197,7 +223,6 @@ pub async fn mgmt_api_get(session: &Session, url: String) -> Result<String, Prev
         )))
     }
 }
-
 
 pub async fn json_diff(
     config_type: String,
@@ -337,11 +362,7 @@ fn to_id_map(arr: &[Value]) -> Option<HashMap<String, &Value>> {
         }
     }
 
-    if has_ids {
-        Some(map)
-    } else {
-        None
-    }
+    if has_ids { Some(map) } else { None }
 }
 
 fn diff_by_id(
@@ -478,14 +499,18 @@ mod tests {
         let config = result.unwrap();
 
         assert_eq!(config.diffs.len(), 2); // b changed, c added
-        assert!(config
-            .diffs
-            .iter()
-            .any(|d| d.key == "b" && d.dest_value == "3"));
-        assert!(config
-            .diffs
-            .iter()
-            .any(|d| d.key == "c" && d.source_value == "null"));
+        assert!(
+            config
+                .diffs
+                .iter()
+                .any(|d| d.key == "b" && d.dest_value == "3")
+        );
+        assert!(
+            config
+                .diffs
+                .iter()
+                .any(|d| d.key == "c" && d.source_value == "null")
+        );
     }
 
     #[tokio::test]
@@ -556,18 +581,24 @@ mod tests {
         let config = result.unwrap();
 
         assert_eq!(config.diffs.len(), 3);
-        assert!(config
-            .diffs
-            .iter()
-            .any(|d| d.key == "user.age" && d.dest_value == "31"));
-        assert!(config
-            .diffs
-            .iter()
-            .any(|d| d.key == "user.address.city" && d.dest_value == "New York"));
-        assert!(config
-            .diffs
-            .iter()
-            .any(|d| d.key == "user.address.zip" && d.source_value == "null"));
+        assert!(
+            config
+                .diffs
+                .iter()
+                .any(|d| d.key == "user.age" && d.dest_value == "31")
+        );
+        assert!(
+            config
+                .diffs
+                .iter()
+                .any(|d| d.key == "user.address.city" && d.dest_value == "New York")
+        );
+        assert!(
+            config
+                .diffs
+                .iter()
+                .any(|d| d.key == "user.address.zip" && d.source_value == "null")
+        );
     }
 
     #[tokio::test]
@@ -585,14 +616,18 @@ mod tests {
 
         // No length diff
         assert!(!config.diffs.iter().any(|d| d.key == "length"));
-        assert!(config
-            .diffs
-            .iter()
-            .any(|d| d.key == "[2]" && d.source_value == "3" && d.dest_value == "5"));
-        assert!(config
-            .diffs
-            .iter()
-            .any(|d| d.key == "[3]" && d.source_value == "4" && d.dest_value == "null"));
+        assert!(
+            config
+                .diffs
+                .iter()
+                .any(|d| d.key == "[2]" && d.source_value == "3" && d.dest_value == "5")
+        );
+        assert!(
+            config
+                .diffs
+                .iter()
+                .any(|d| d.key == "[3]" && d.source_value == "4" && d.dest_value == "null")
+        );
     }
 
     #[tokio::test]
@@ -624,10 +659,12 @@ mod tests {
         // - [1] removed (ANOTHER_SECRET)
         assert_eq!(config.diffs.len(), 2);
         assert!(config.diffs.iter().any(|d| d.key == "[0]")); // MY_SECRET changed
-        assert!(config
-            .diffs
-            .iter()
-            .any(|d| d.key == "[1]" && d.source_value.contains("ANOTHER_SECRET"))); // ANOTHER_SECRET removed
+        assert!(
+            config
+                .diffs
+                .iter()
+                .any(|d| d.key == "[1]" && d.source_value.contains("ANOTHER_SECRET"))
+        ); // ANOTHER_SECRET removed
 
         // Should not have any SUPABASE_ related diffs
         for diff in &config.diffs {

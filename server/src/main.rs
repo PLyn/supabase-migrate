@@ -4,15 +4,14 @@ mod models;
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     use axum::{Router, routing::get};
-    use handlers::migrate::preview_handler;
-    use handlers::test_handler;
     use models::{AppConfig, AppState};
     use time::Duration;
+    use tower_http::cors::{Any, CorsLayer};
     use tower_sessions::{Expiry, MemoryStore, SessionManagerLayer};
 
-    use tower_http::cors::{Any, CorsLayer};
-
-    //use handlers::{callback_handler, login_handler};
+    use handlers::migrate::preview_handler;
+    use handlers::oauth::{callback_handler, login_handler};
+    use handlers::test_handler;
 
     let app_config = AppConfig::from_env()?;
 
@@ -36,8 +35,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let app = Router::new()
         .route("/", get(test_handler))
         .route("/preview", get(preview_handler))
-        //.route("/connect-supabase/login", get(login_handler))
-        //.route("/connect-supabase/oauth2/callback", get(callback_handler))
+        .route("/connect-supabase/login", get(login_handler))
+        .route("/connect-supabase/oauth2/callback", get(callback_handler))
         .layer(cors) // Add CORS layer
         .layer(session_layer)
         .with_state(app_state);
