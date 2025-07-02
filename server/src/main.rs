@@ -16,7 +16,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let app_state = AppState {
         config: app_config.clone(),
     };
-    let site_addr = app_state.config.site_url.to_owned();
+    let server_addr = app_state.config.server_addr.to_owned();
 
     let session_store = MemoryStore::default();
     let session_expiry = Expiry::OnInactivity(Duration::hours(6));
@@ -27,10 +27,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Configure CORS for production
     let cors = CorsLayer::new()
-        .allow_origin(["https://supabase-migrate.onrender.com".parse().unwrap()])
+        .allow_origin([
+            "https://supabase-migrate.onrender.com".parse().unwrap(),
+            "http://localhost:5173".parse().unwrap(),
+        ])
         .allow_methods(Any) // Allows all HTTP methods
-        .allow_headers(Any) // Allows all headers
-        .allow_credentials(true); // Crucial for sessions/cookies
+        .allow_headers(Any);
 
     let app = Router::new()
         .route("/", get(test_handler))
@@ -41,8 +43,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .layer(session_layer)
         .with_state(app_state);
 
-    eprintln!("listening on http://{}", site_addr);
-    let listener = tokio::net::TcpListener::bind(site_addr).await?;
+    eprintln!("listening on {}", server_addr);
+    let listener = tokio::net::TcpListener::bind(server_addr).await?;
     axum::serve(listener, app.into_make_service()).await?;
 
     Ok(())

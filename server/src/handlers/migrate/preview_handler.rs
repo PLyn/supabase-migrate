@@ -73,7 +73,7 @@ impl From<serde_json::Error> for PreviewError {
 }
 
 pub async fn preview_handler(
-    State(app_state): State<AppState>,
+    State(_app_state): State<AppState>,
     Query(params): Query<PreviewQuery>,
     session: Session,
 ) -> Result<impl IntoResponse, PreviewError> {

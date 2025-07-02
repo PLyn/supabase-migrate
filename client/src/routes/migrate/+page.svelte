@@ -10,7 +10,8 @@
         error = null;
 
         try {
-            const response = await fetch("http://0.0.0.0:10000/preview", {
+            // TODO Update this to pull from env so that deployed version works instead of local only
+            const response = await fetch("http://localhost:10000/preview", {
                 method: "GET",
                 headers: {
                     "Content-Type": "application/json",

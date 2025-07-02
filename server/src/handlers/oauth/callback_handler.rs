@@ -12,7 +12,7 @@ pub async fn callback_handler(
     State(app_state): State<AppState>,
     session: Session,
 ) -> impl IntoResponse {
-    let site_addr = app_state.config.site_url.to_owned();
+    let client_addr = app_state.config.client_addr.to_owned();
 
     eprintln!(
         "OAuth callback received. Code: {}, State: {}",
@@ -27,7 +27,7 @@ pub async fn callback_handler(
             return Redirect::to(
                 format!(
                     "http://{}/auth?status=error&reason=session_error",
-                    site_addr
+                    client_addr
                 )
                 .as_str(),
             )
@@ -48,7 +48,7 @@ pub async fn callback_handler(
             return Redirect::to(
                 format!(
                     "http://{}/auth?status=error&reason=no_session_data",
-                    site_addr
+                    client_addr
                 )
                 .as_str(),
             )
@@ -65,7 +65,7 @@ pub async fn callback_handler(
         None => {
             eprintln!("No PKCE verifier found in session");
             return Redirect::to(
-                format!("http://{}/auth?status=error&reason=no_pkce", site_addr).as_str(),
+                format!("http://{}/auth?status=error&reason=no_pkce", client_addr).as_str(),
             )
             .into_response();
         }
@@ -77,7 +77,7 @@ pub async fn callback_handler(
         None => {
             eprintln!("No CSRF token found in session");
             return Redirect::to(
-                format!("http://{}/auth?status=error&reason=no_csrf", site_addr).as_str(),
+                format!("http://{}/auth?status=error&reason=no_csrf", client_addr).as_str(),
             )
             .into_response();
         }
@@ -92,7 +92,7 @@ pub async fn callback_handler(
         return Redirect::to(
             format!(
                 "http://{}/auth?status=error&reason=csrf_mismatch",
-                site_addr
+                client_addr
             )
             .as_str(),
         )
@@ -124,7 +124,7 @@ pub async fn callback_handler(
             return Redirect::to(
                 format!(
                     "http://{}/auth?status=error&reason=token_exchange_failed",
-                    site_addr
+                    client_addr
                 )
                 .as_str(),
             )
@@ -149,7 +149,7 @@ pub async fn callback_handler(
         return Redirect::to(
             format!(
                 "http://{}/auth?status=error&reason={}",
-                site_addr, error_reason
+                client_addr, error_reason
             )
             .as_str(),
         )
@@ -163,7 +163,7 @@ pub async fn callback_handler(
             return Redirect::to(
                 format!(
                     "http://{}/auth?status=error&reason=token_parse_error",
-                    site_addr
+                    client_addr
                 )
                 .as_str(),
             )
@@ -180,7 +180,7 @@ pub async fn callback_handler(
         return Redirect::to(
             format!(
                 "http://{}/auth?status=error&reason=session_store_error",
-                site_addr
+                client_addr
             )
             .as_str(),
         )
@@ -199,5 +199,5 @@ pub async fn callback_handler(
     eprintln!("Authentication successful");
 
     // Redirect back to frontend on success
-    Redirect::to(format!("http://{}/auth?status=success", site_addr).as_str()).into_response()
+    Redirect::to(format!("http://{}/auth?status=success", client_addr).as_str()).into_response()
 }
