@@ -25,11 +25,7 @@ pub async fn callback_handler(
         Err(e) => {
             eprintln!("Failed to retrieve session data: {:?}", e);
             return Redirect::to(
-                format!(
-                    "http://{}/auth?status=error&reason=session_error",
-                    client_addr
-                )
-                .as_str(),
+                format!("{}/auth?status=error&reason=session_error", client_addr).as_str(),
             )
             .into_response();
         }
@@ -46,11 +42,7 @@ pub async fn callback_handler(
         None => {
             eprintln!("No oauth_data found in session");
             return Redirect::to(
-                format!(
-                    "http://{}/auth?status=error&reason=no_session_data",
-                    client_addr
-                )
-                .as_str(),
+                format!("{}/auth?status=error&reason=no_session_data", client_addr).as_str(),
             )
             .into_response();
         }
@@ -65,7 +57,7 @@ pub async fn callback_handler(
         None => {
             eprintln!("No PKCE verifier found in session");
             return Redirect::to(
-                format!("http://{}/auth?status=error&reason=no_pkce", client_addr).as_str(),
+                format!("{}/auth?status=error&reason=no_pkce", client_addr).as_str(),
             )
             .into_response();
         }
@@ -77,7 +69,7 @@ pub async fn callback_handler(
         None => {
             eprintln!("No CSRF token found in session");
             return Redirect::to(
-                format!("http://{}/auth?status=error&reason=no_csrf", client_addr).as_str(),
+                format!("{}/auth?status=error&reason=no_csrf", client_addr).as_str(),
             )
             .into_response();
         }
@@ -90,11 +82,7 @@ pub async fn callback_handler(
             original_csrf_secret, params.state
         );
         return Redirect::to(
-            format!(
-                "http://{}/auth?status=error&reason=csrf_mismatch",
-                client_addr
-            )
-            .as_str(),
+            format!("{}/auth?status=error&reason=csrf_mismatch", client_addr).as_str(),
         )
         .into_response();
     }
@@ -123,7 +111,7 @@ pub async fn callback_handler(
             eprintln!("Failed to exchange token: {:?}", e);
             return Redirect::to(
                 format!(
-                    "http://{}/auth?status=error&reason=token_exchange_failed",
+                    "{}/auth?status=error&reason=token_exchange_failed",
                     client_addr
                 )
                 .as_str(),
@@ -147,11 +135,7 @@ pub async fn callback_handler(
             _ => "token_exchange_error",
         };
         return Redirect::to(
-            format!(
-                "http://{}/auth?status=error&reason={}",
-                client_addr, error_reason
-            )
-            .as_str(),
+            format!("{}/auth?status=error&reason={}", client_addr, error_reason).as_str(),
         )
         .into_response();
     }
@@ -161,11 +145,7 @@ pub async fn callback_handler(
         Err(e) => {
             eprintln!("Failed to parse token response: {:?}", e);
             return Redirect::to(
-                format!(
-                    "http://{}/auth?status=error&reason=token_parse_error",
-                    client_addr
-                )
-                .as_str(),
+                format!("{}/auth?status=error&reason=token_parse_error", client_addr).as_str(),
             )
             .into_response();
         }
@@ -179,7 +159,7 @@ pub async fn callback_handler(
         eprintln!("Failed to store access token in session: {:?}", e);
         return Redirect::to(
             format!(
-                "http://{}/auth?status=error&reason=session_store_error",
+                "{}/auth?status=error&reason=session_store_error",
                 client_addr
             )
             .as_str(),
@@ -199,5 +179,5 @@ pub async fn callback_handler(
     eprintln!("Authentication successful");
 
     // Redirect back to frontend on success
-    Redirect::to(format!("http://{}/auth?status=success", client_addr).as_str()).into_response()
+    Redirect::to(format!("{}/auth?status=success", client_addr).as_str()).into_response()
 }

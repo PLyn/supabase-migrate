@@ -1,15 +1,18 @@
 mod handlers;
 mod models;
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Changed Box to Box<dyn std::error::Error> for better error handling
     use axum::{Router, routing::get};
     use handlers::migrate::preview_handler;
-    use handlers::oauth::{callback_handler, login_handler};
+    use handlers::oauth::{callback_handler, login_handler, status_handler};
     use handlers::test_handler;
     use models::{AppConfig, AppState};
+    use reqwest::Method;
+    use reqwest::header::{ACCEPT, AUTHORIZATION, CONTENT_TYPE};
     use time::Duration;
-    use tower_http::cors::{Any, CorsLayer}; // Any for methods/headers is fine
+    use tower_http::cors::CorsLayer; // Any for methods/headers is fine
     use tower_sessions::{Expiry, MemoryStore, SessionManagerLayer};
 
     let app_config = AppConfig::from_env()?;
@@ -31,12 +34,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             "https://supabase-migrate.onrender.com".parse().unwrap(),
             "http://localhost:5173".parse().unwrap(),
         ])
-        .allow_methods(Any) // Allows all HTTP methods
-        .allow_headers(Any);
+        .allow_methods([Method::GET, Method::POST]) // Allows all HTTP methods
+        .allow_headers([
+            AUTHORIZATION, // For sending tokens
+            ACCEPT,        // Standard header
+            CONTENT_TYPE,  // Because you send JSON
+        ])
+        .allow_credentials(true);
 
     let app = Router::new()
         .route("/", get(test_handler))
         .route("/preview", get(preview_handler))
+        .route("/auth", get(status_handler))
         .route("/connect-supabase/login", get(login_handler))
         .route("/connect-supabase/oauth2/callback", get(callback_handler))
         .layer(cors) // Add CORS layer

@@ -1,408 +1,430 @@
 <!-- src/routes/+page.svelte -->
 <script>
-	let count = $state(0);
+    import { onMount } from "svelte";
 
-	function onClick() {
-		count += 1;
-	}
+    let is_authenticated = $state(false);
+    let is_loading = $state(true); // Track loading state
+    let count = $state(0);
+
+    async function onClick() {
+        count += 1;
+    }
+
+    onMount(async () => {
+        try {
+            const response = await fetch("http://localhost:10000/auth", {
+                method: "GET",
+                credentials: "include",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            let response_text = await response.json();
+            console.log(response_text);
+            is_authenticated = response_text;
+            console.log("is_auth: " + is_authenticated);
+        } catch (err) {
+            console.error("Error fetching preview:", err);
+        } finally {
+            is_loading = false; // Set loading to false regardless of success/failure
+            console.log("finally");
+        }
+    });
 </script>
 
 <div class="container">
-	<header class="hero">
-		<h1 class="hero-title">Welcome to Leptos!</h1>
-		<p class="hero-subtitle">A modern web application with Supabase integration</p>
-	</header>
+    <header class="hero">
+        <h1 class="hero-title">Welcome to Svelte!</h1>
+        <p class="hero-subtitle">
+            A modern web application with Supabase integration
+        </p>
+    </header>
 
-	<section class="demo-section">
-		<h2 class="section-title">Interactive Demo</h2>
-		<div class="counter-demo">
-			<button onclick={onClick} class="btn btn-primary counter-btn">
-				Click Me: <span class="counter-value">{count}</span>
-			</button>
-		</div>
-	</section>
+    {#if !is_authenticated && !is_loading}
+        <div class="card">
+            <h3 class="card-title">Authentication</h3>
+            <p class="card-description">
+                Connect with your Supabase account to access personalized
+                features.
+            </p>
+            <a
+                href="http://localhost:10000/connect-supabase/login"
+                rel="external"
+                class="btn btn-primary"
+            >
+                Authorize Supabase
+            </a>
+        </div>
+    {/if}
 
-	<section class="test-section">
-		<h2 class="section-title">Test Area</h2>
-		<div class="test-content">
-			<p class="test-description">This section demonstrates various UI components and styling.</p>
-			<button class="btn btn-secondary">Test Button</button>
-		</div>
-	</section>
+    <!-- Loading skeleton or authentication status -->
+    {#if is_loading}
+        <div class="auth-skeleton">
+            <div class="skeleton-header"></div>
+            <div class="skeleton-text"></div>
+        </div>
+    {:else if !is_authenticated}
+        <h1>I am not logged in</h1>
+    {:else}
+        <h1>Welcome user</h1>
+        <p>I am logged in!</p>
+    {/if}
 
-	<section class="supabase-section">
-		<h2 class="section-title">Supabase Connect Example</h2>
-		<div class="feature-description">
-			<p>This is an example of implementing Supabase OAuth integration with Rust/Axum backend.</p>
-		</div>
-
-		<div class="action-cards">
-			<div class="card">
-				<h3 class="card-title">Authentication</h3>
-				<p class="card-description">
-					Connect with your Supabase account to access personalized features.
-				</p>
-				<a href="/connect-supabase/login" rel="external" class="btn btn-primary">
-					Login with Supabase
-				</a>
-			</div>
-
-			<div class="card">
-				<h3 class="card-title">Project Management</h3>
-				<p class="card-description">View and manage your projects once authenticated.</p>
-				<a href="/connect-supabase/projects" rel="external" class="btn btn-outline">
-					View Projects
-				</a>
-			</div>
-		</div>
-	</section>
+    <section class="demo-section">
+        <h2 class="section-title">Interactive Demo</h2>
+        <div class="counter-demo">
+            <button onclick={onClick} class="btn btn-primary counter-btn">
+                Click Me: <span class="counter-value">{count}</span>
+            </button>
+        </div>
+    </section>
 </div>
 
 <style>
-	.container {
-		max-width: 1200px;
-		margin: 0 auto;
-		padding: 2rem 1rem;
-		font-family:
-			system-ui,
-			-apple-system,
-			BlinkMacSystemFont,
-			'Segoe UI',
-			Roboto,
-			sans-serif;
-		line-height: 1.6;
-		color: #2d3748;
-	}
+    .container {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 2rem 1rem;
+        font-family:
+            system-ui,
+            -apple-system,
+            BlinkMacSystemFont,
+            "Segoe UI",
+            Roboto,
+            sans-serif;
+        line-height: 1.6;
+        color: #2d3748;
+    }
 
-	/* Hero Section */
-	.hero {
-		text-align: center;
-		margin-bottom: 4rem;
-		padding: 3rem 0;
-		background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-		border-radius: 1rem;
-		color: white;
-		position: relative;
-		overflow: hidden;
-	}
+    /* Loading Skeleton Styles */
+    .auth-skeleton {
+        margin: 2rem 0;
+        padding: 1.5rem;
+        border-radius: 0.5rem;
+        background: #f7fafc;
+        border: 1px solid #e2e8f0;
+    }
 
-	.hero::before {
-		content: '';
-		position: absolute;
-		top: 0;
-		left: 0;
-		right: 0;
-		bottom: 0;
-		background: rgba(255, 255, 255, 0.1);
-		backdrop-filter: blur(10px);
-		z-index: 1;
-	}
+    .skeleton-header {
+        height: 2rem;
+        background: linear-gradient(
+            90deg,
+            #e2e8f0 25%,
+            #f7fafc 50%,
+            #e2e8f0 75%
+        );
+        background-size: 200% 100%;
+        animation: skeleton-loading 1.5s infinite;
+        border-radius: 0.25rem;
+        margin-bottom: 0.75rem;
+        width: 60%;
+    }
 
-	.hero > * {
-		position: relative;
-		z-index: 2;
-	}
+    .skeleton-text {
+        height: 1rem;
+        background: linear-gradient(
+            90deg,
+            #e2e8f0 25%,
+            #f7fafc 50%,
+            #e2e8f0 75%
+        );
+        background-size: 200% 100%;
+        animation: skeleton-loading 1.5s infinite;
+        border-radius: 0.25rem;
+        width: 40%;
+    }
 
-	.hero-title {
-		font-size: 3rem;
-		font-weight: 800;
-		margin: 0 0 1rem 0;
-		text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
-	}
+    @keyframes skeleton-loading {
+        0% {
+            background-position: 200% 0;
+        }
+        100% {
+            background-position: -200% 0;
+        }
+    }
 
-	.hero-subtitle {
-		font-size: 1.2rem;
-		opacity: 0.9;
-		margin: 0;
-		font-weight: 300;
-	}
+    /* Hero Section */
+    .hero {
+        text-align: center;
+        margin-bottom: 4rem;
+        padding: 3rem 0;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border-radius: 1rem;
+        color: white;
+        position: relative;
+        overflow: hidden;
+    }
 
-	/* Section Styling */
-	.demo-section,
-	.test-section,
-	.supabase-section {
-		margin-bottom: 3rem;
-		padding: 2rem 0;
-	}
+    .hero::before {
+        content: "";
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(255, 255, 255, 0.1);
+        backdrop-filter: blur(10px);
+        z-index: 1;
+    }
 
-	.section-title {
-		font-size: 2rem;
-		font-weight: 700;
-		margin: 0 0 1.5rem 0;
-		color: #1a202c;
-		position: relative;
-		padding-bottom: 0.5rem;
-	}
+    .hero > * {
+        position: relative;
+        z-index: 2;
+    }
 
-	.section-title::after {
-		content: '';
-		position: absolute;
-		bottom: 0;
-		left: 0;
-		width: 3rem;
-		height: 3px;
-		background: linear-gradient(90deg, #3182ce, #63b3ed);
-		border-radius: 2px;
-	}
+    .hero-title {
+        font-size: 3rem;
+        font-weight: 800;
+        margin: 0 0 1rem 0;
+        text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+    }
 
-	/* Counter Demo */
-	.counter-demo {
-		display: flex;
-		justify-content: center;
-		margin: 2rem 0;
-	}
+    .hero-subtitle {
+        font-size: 1.2rem;
+        opacity: 0.9;
+        margin: 0;
+        font-weight: 300;
+    }
 
-	.counter-btn {
-		font-size: 1.1rem;
-		padding: 1rem 2rem;
-		min-width: 200px;
-	}
+    /* Section Styling */
+    .demo-section {
+        margin-bottom: 3rem;
+        padding: 2rem 0;
+    }
 
-	.counter-value {
-		font-weight: 700;
-		color: #ffd700;
-		text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
-	}
+    .section-title {
+        font-size: 2rem;
+        font-weight: 700;
+        margin: 0 0 1.5rem 0;
+        color: #1a202c;
+        position: relative;
+        padding-bottom: 0.5rem;
+    }
 
-	/* Test Section */
-	.test-content {
-		padding: 2rem;
-		background: #f8fafc;
-		border-radius: 0.75rem;
-		border: 1px solid #e2e8f0;
-	}
+    .section-title::after {
+        content: "";
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        width: 3rem;
+        height: 3px;
+        background: linear-gradient(90deg, #3182ce, #63b3ed);
+        border-radius: 2px;
+    }
 
-	.test-description {
-		margin: 0 0 1.5rem 0;
-		color: #4a5568;
-	}
+    /* Counter Demo */
+    .counter-demo {
+        display: flex;
+        justify-content: center;
+        margin: 2rem 0;
+    }
 
-	/* Feature Description */
-	.feature-description {
-		margin-bottom: 2rem;
-	}
+    .counter-btn {
+        font-size: 1.1rem;
+        padding: 1rem 2rem;
+        min-width: 200px;
+    }
 
-	.feature-description p {
-		font-size: 1.1rem;
-		color: #4a5568;
-		margin: 0;
-	}
+    .counter-value {
+        font-weight: 700;
+        color: #ffd700;
+        text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+    }
 
-	/* Action Cards */
-	.action-cards {
-		display: grid;
-		grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-		gap: 2rem;
-		margin-top: 2rem;
-	}
+    .card {
+        background: white;
+        border: 1px solid #e2e8f0;
+        border-radius: 0.75rem;
+        padding: 2rem;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+        transition: all 0.3s ease;
+        position: relative;
+        overflow: hidden;
+    }
 
-	.card {
-		background: white;
-		border: 1px solid #e2e8f0;
-		border-radius: 0.75rem;
-		padding: 2rem;
-		box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
-		transition: all 0.3s ease;
-		position: relative;
-		overflow: hidden;
-	}
+    .card::before {
+        content: "";
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 4px;
+        background: linear-gradient(90deg, #3182ce, #63b3ed);
+    }
 
-	.card::before {
-		content: '';
-		position: absolute;
-		top: 0;
-		left: 0;
-		right: 0;
-		height: 4px;
-		background: linear-gradient(90deg, #3182ce, #63b3ed);
-	}
+    .card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+    }
 
-	.card:hover {
-		transform: translateY(-2px);
-		box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
-	}
+    .card-title {
+        font-size: 1.5rem;
+        font-weight: 600;
+        margin: 0 0 1rem 0;
+        color: #2d3748;
+    }
 
-	.card-title {
-		font-size: 1.5rem;
-		font-weight: 600;
-		margin: 0 0 1rem 0;
-		color: #2d3748;
-	}
+    .card-description {
+        color: #4a5568;
+        margin: 0 0 1.5rem 0;
+        line-height: 1.6;
+    }
 
-	.card-description {
-		color: #4a5568;
-		margin: 0 0 1.5rem 0;
-		line-height: 1.6;
-	}
+    /* Button Styles */
+    .btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0.75rem 1.5rem;
+        border: 2px solid transparent;
+        border-radius: 0.5rem;
+        font-size: 1rem;
+        font-weight: 500;
+        text-decoration: none;
+        cursor: pointer;
+        transition: all 0.2s ease-in-out;
+        min-width: 140px;
+        text-align: center;
+    }
 
-	/* Button Styles */
-	.btn {
-		display: inline-flex;
-		align-items: center;
-		justify-content: center;
-		padding: 0.75rem 1.5rem;
-		border: 2px solid transparent;
-		border-radius: 0.5rem;
-		font-size: 1rem;
-		font-weight: 500;
-		text-decoration: none;
-		cursor: pointer;
-		transition: all 0.2s ease-in-out;
-		min-width: 140px;
-		text-align: center;
-	}
+    .btn:focus {
+        outline: none;
+        box-shadow: 0 0 0 3px rgba(66, 153, 225, 0.3);
+    }
 
-	.btn:focus {
-		outline: none;
-		box-shadow: 0 0 0 3px rgba(66, 153, 225, 0.3);
-	}
+    .btn-primary {
+        background-color: #3182ce;
+        color: white;
+        border-color: #3182ce;
+    }
 
-	.btn-primary {
-		background-color: #3182ce;
-		color: white;
-		border-color: #3182ce;
-	}
+    .btn-primary:hover {
+        background-color: #2c5282;
+        border-color: #2c5282;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(49, 130, 206, 0.3);
+    }
 
-	.btn-primary:hover {
-		background-color: #2c5282;
-		border-color: #2c5282;
-		transform: translateY(-1px);
-		box-shadow: 0 4px 12px rgba(49, 130, 206, 0.3);
-	}
+    .btn:active {
+        transform: translateY(0);
+    }
 
-	.btn-secondary {
-		background-color: #4a5568;
-		color: white;
-		border-color: #4a5568;
-	}
+    /* Responsive Design */
+    @media (max-width: 768px) {
+        .container {
+            padding: 1rem 0.75rem;
+        }
 
-	.btn-secondary:hover {
-		background-color: #2d3748;
-		border-color: #2d3748;
-		transform: translateY(-1px);
-		box-shadow: 0 4px 12px rgba(74, 85, 104, 0.3);
-	}
+        .hero {
+            margin-bottom: 2rem;
+            padding: 2rem 1rem;
+        }
 
-	.btn-outline {
-		background-color: transparent;
-		color: #3182ce;
-		border-color: #3182ce;
-	}
+        .hero-title {
+            font-size: 2rem;
+        }
 
-	.btn-outline:hover {
-		background-color: #3182ce;
-		color: white;
-		transform: translateY(-1px);
-		box-shadow: 0 4px 12px rgba(49, 130, 206, 0.3);
-	}
+        .hero-subtitle {
+            font-size: 1rem;
+        }
 
-	.btn:active {
-		transform: translateY(0);
-	}
+        .section-title {
+            font-size: 1.5rem;
+        }
 
-	/* Responsive Design */
-	@media (max-width: 768px) {
-		.container {
-			padding: 1rem 0.75rem;
-		}
+        .card {
+            padding: 1.5rem;
+        }
 
-		.hero {
-			margin-bottom: 2rem;
-			padding: 2rem 1rem;
-		}
+        .counter-btn {
+            font-size: 1rem;
+            padding: 0.75rem 1.5rem;
+            min-width: 160px;
+        }
 
-		.hero-title {
-			font-size: 2rem;
-		}
+        .auth-skeleton {
+            padding: 1rem;
+        }
+    }
 
-		.hero-subtitle {
-			font-size: 1rem;
-		}
+    @media (max-width: 480px) {
+        .hero-title {
+            font-size: 1.75rem;
+        }
 
-		.section-title {
-			font-size: 1.5rem;
-		}
+        .btn {
+            width: 100%;
+            min-width: auto;
+        }
 
-		.action-cards {
-			grid-template-columns: 1fr;
-			gap: 1.5rem;
-		}
+        .counter-demo {
+            margin: 1.5rem 0;
+        }
+    }
 
-		.card {
-			padding: 1.5rem;
-		}
+    /* High Contrast Mode */
+    @media (prefers-contrast: high) {
+        .btn {
+            border-width: 3px;
+        }
 
-		.counter-btn {
-			font-size: 1rem;
-			padding: 0.75rem 1.5rem;
-			min-width: 160px;
-		}
-	}
+        .card {
+            border-width: 2px;
+        }
 
-	@media (max-width: 480px) {
-		.hero-title {
-			font-size: 1.75rem;
-		}
+        .section-title::after {
+            height: 4px;
+        }
+    }
 
-		.btn {
-			width: 100%;
-			min-width: auto;
-		}
+    /* Reduced Motion - Disable skeleton animation */
+    @media (prefers-reduced-motion: reduce) {
+        .btn,
+        .card {
+            transition: none;
+        }
 
-		.counter-demo {
-			margin: 1.5rem 0;
-		}
-	}
+        .btn:hover,
+        .card:hover {
+            transform: none;
+        }
 
-	/* High Contrast Mode */
-	@media (prefers-contrast: high) {
-		.btn {
-			border-width: 3px;
-		}
+        .hero::before {
+            backdrop-filter: none;
+        }
 
-		.card {
-			border-width: 2px;
-		}
+        .skeleton-header,
+        .skeleton-text {
+            animation: none;
+            background: #e2e8f0;
+        }
+    }
 
-		.section-title::after {
-			height: 4px;
-		}
-	}
+    /* Print Styles */
+    @media print {
+        .hero {
+            background: white !important;
+            color: #000 !important;
+            border: 2px solid #000;
+        }
 
-	/* Reduced Motion */
-	@media (prefers-reduced-motion: reduce) {
-		.btn,
-		.card {
-			transition: none;
-		}
+        .btn {
+            border: 2px solid #000 !important;
+            background: white !important;
+            color: #000 !important;
+        }
 
-		.btn:hover,
-		.card:hover {
-			transform: none;
-		}
+        .card {
+            border: 1px solid #000;
+            box-shadow: none;
+        }
 
-		.hero::before {
-			backdrop-filter: none;
-		}
-	}
-
-	/* Print Styles */
-	@media print {
-		.hero {
-			background: white !important;
-			color: #000 !important;
-			border: 2px solid #000;
-		}
-
-		.btn {
-			border: 2px solid #000 !important;
-			background: white !important;
-			color: #000 !important;
-		}
-
-		.card {
-			border: 1px solid #000;
-			box-shadow: none;
-		}
-	}
+        .auth-skeleton {
+            display: none;
+        }
+    }
 </style>

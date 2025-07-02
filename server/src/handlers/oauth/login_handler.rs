@@ -1,6 +1,9 @@
 use crate::models::AppState;
 use crate::models::oauth::OAuthSessionData;
-use axum::{extract::State, response::IntoResponse};
+use axum::{
+    extract::State,
+    response::{IntoResponse, Redirect},
+};
 use oauth2::{CsrfToken, PkceCodeChallenge};
 use tower_sessions::Session;
 
@@ -33,5 +36,5 @@ pub async fn login_handler(
     session.insert("oauth_data", session_data).await.unwrap();
 
     // Instead of redirecting, return the URL as JSON
-    constructed_url.into_response()
+    Redirect::to(&constructed_url).into_response()
 }
