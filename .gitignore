@@ -7,6 +7,7 @@ client/.netlify
 client/.wrangler
 client/.svelte-kit
 client/build
+client/package
 
 # OS
 client/.DS_Store
