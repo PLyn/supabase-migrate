@@ -12,6 +12,8 @@ pub async fn callback_handler(
     State(app_state): State<AppState>,
     session: Session,
 ) -> impl IntoResponse {
+    let site_addr = app_state.config.site_url.to_owned();
+
     eprintln!(
         "OAuth callback received. Code: {}, State: {}",
         params.code, params.state
@@ -22,8 +24,14 @@ pub async fn callback_handler(
         Ok(data) => data,
         Err(e) => {
             eprintln!("Failed to retrieve session data: {:?}", e);
-            return Redirect::to("http://0.0.0.0:5173/auth?status=error&reason=session_error")
-                .into_response();
+            return Redirect::to(
+                format!(
+                    "http://{}/auth?status=error&reason=session_error",
+                    site_addr
+                )
+                .as_str(),
+            )
+            .into_response();
         }
     };
 
@@ -37,8 +45,14 @@ pub async fn callback_handler(
         Some(data) => data,
         None => {
             eprintln!("No oauth_data found in session");
-            return Redirect::to("http://0.0.0.0:5173/auth?status=error&reason=no_session_data")
-                .into_response();
+            return Redirect::to(
+                format!(
+                    "http://{}/auth?status=error&reason=no_session_data",
+                    site_addr
+                )
+                .as_str(),
+            )
+            .into_response();
         }
     };
 
@@ -50,8 +64,10 @@ pub async fn callback_handler(
         Some(secret) => secret,
         None => {
             eprintln!("No PKCE verifier found in session");
-            return Redirect::to("http://0.0.0.0:5173/auth?status=error&reason=no_pkce")
-                .into_response();
+            return Redirect::to(
+                format!("http://{}/auth?status=error&reason=no_pkce", site_addr).as_str(),
+            )
+            .into_response();
         }
     };
 
@@ -60,8 +76,10 @@ pub async fn callback_handler(
         Some(token) => token,
         None => {
             eprintln!("No CSRF token found in session");
-            return Redirect::to("http://0.0.0.0:5173/auth?status=error&reason=no_csrf")
-                .into_response();
+            return Redirect::to(
+                format!("http://{}/auth?status=error&reason=no_csrf", site_addr).as_str(),
+            )
+            .into_response();
         }
     };
 
@@ -71,8 +89,14 @@ pub async fn callback_handler(
             "CSRF token mismatch. Expected: {}, Got: {}",
             original_csrf_secret, params.state
         );
-        return Redirect::to("http://0.0.0.0:5173/auth?status=error&reason=csrf_mismatch")
-            .into_response();
+        return Redirect::to(
+            format!(
+                "http://{}/auth?status=error&reason=csrf_mismatch",
+                site_addr
+            )
+            .as_str(),
+        )
+        .into_response();
     }
 
     let pkce_verifier = PkceCodeVerifier::new(pkce_verifier_secret);
@@ -98,7 +122,11 @@ pub async fn callback_handler(
         Err(e) => {
             eprintln!("Failed to exchange token: {:?}", e);
             return Redirect::to(
-                "http://0.0.0.0:5173/auth?status=error&reason=token_exchange_failed",
+                format!(
+                    "http://{}/auth?status=error&reason=token_exchange_failed",
+                    site_addr
+                )
+                .as_str(),
             )
             .into_response();
         }
@@ -118,10 +146,13 @@ pub async fn callback_handler(
             403 => "forbidden",
             _ => "token_exchange_error",
         };
-        return Redirect::to(&format!(
-            "http://0.0.0.0:5173/auth?status=error&reason={}",
-            error_reason
-        ))
+        return Redirect::to(
+            format!(
+                "http://{}/auth?status=error&reason={}",
+                site_addr, error_reason
+            )
+            .as_str(),
+        )
         .into_response();
     }
 
@@ -129,8 +160,14 @@ pub async fn callback_handler(
         Ok(data) => data,
         Err(e) => {
             eprintln!("Failed to parse token response: {:?}", e);
-            return Redirect::to("http://0.0.0.0:5173/auth?status=error&reason=token_parse_error")
-                .into_response();
+            return Redirect::to(
+                format!(
+                    "http://{}/auth?status=error&reason=token_parse_error",
+                    site_addr
+                )
+                .as_str(),
+            )
+            .into_response();
         }
     };
 
@@ -140,8 +177,14 @@ pub async fn callback_handler(
         .await
     {
         eprintln!("Failed to store access token in session: {:?}", e);
-        return Redirect::to("http://0.0.0.0:5173/auth?status=error&reason=session_store_error")
-            .into_response();
+        return Redirect::to(
+            format!(
+                "http://{}/auth?status=error&reason=session_store_error",
+                site_addr
+            )
+            .as_str(),
+        )
+        .into_response();
     }
 
     if let Some(refresh_token) = token_data.refresh_token {
@@ -156,5 +199,5 @@ pub async fn callback_handler(
     eprintln!("Authentication successful");
 
     // Redirect back to frontend on success
-    Redirect::to("http://0.0.0.0:5173/auth?status=success").into_response()
+    Redirect::to(format!("http://{}/auth?status=success", site_addr).as_str()).into_response()
 }

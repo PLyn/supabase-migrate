@@ -1,36 +1,36 @@
 mod handlers;
 mod models;
-
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // Changed Box to Box<dyn std::error::Error> for better error handling
     use axum::{Router, routing::get};
-    use models::{AppConfig, AppState};
-    use time::Duration;
-    use tower_http::cors::{Any, CorsLayer};
-    use tower_sessions::{Expiry, MemoryStore, SessionManagerLayer};
-
     use handlers::migrate::preview_handler;
     use handlers::oauth::{callback_handler, login_handler};
     use handlers::test_handler;
+    use models::{AppConfig, AppState};
+    use time::Duration;
+    use tower_http::cors::{Any, CorsLayer}; // Any for methods/headers is fine
+    use tower_sessions::{Expiry, MemoryStore, SessionManagerLayer};
 
     let app_config = AppConfig::from_env()?;
-
     let app_state = AppState {
         config: app_config.clone(),
     };
+    let site_addr = app_state.config.site_url.to_owned();
 
     let session_store = MemoryStore::default();
     let session_expiry = Expiry::OnInactivity(Duration::hours(6));
     let session_layer = SessionManagerLayer::new(session_store)
-        .with_secure(false)
+        .with_secure(false) // Set to true if deploying with HTTPS (Render handles HTTPS usually)
         .with_same_site(tower_sessions::cookie::SameSite::Lax)
         .with_expiry(session_expiry);
 
-    // Configure CORS to allow requests from any origin on the local network
+    // Configure CORS for production
     let cors = CorsLayer::new()
-        .allow_origin(Any) // For development - allows any origin
+        .allow_origin(["https://supabase-migrate.onrender.com".parse().unwrap()])
         .allow_methods(Any) // Allows all HTTP methods
-        .allow_headers(Any); // Allows all headers
+        .allow_headers(Any) // Allows all headers
+        .allow_credentials(true); // Crucial for sessions/cookies
 
     let app = Router::new()
         .route("/", get(test_handler))
@@ -41,9 +41,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .layer(session_layer)
         .with_state(app_state);
 
-    eprintln!("listening on http://{}", "0.0.0.0:10000");
-
-    let listener = tokio::net::TcpListener::bind("0.0.0.0:10000").await?;
+    eprintln!("listening on http://{}", site_addr);
+    let listener = tokio::net::TcpListener::bind(site_addr).await?;
     axum::serve(listener, app.into_make_service()).await?;
 
     Ok(())
