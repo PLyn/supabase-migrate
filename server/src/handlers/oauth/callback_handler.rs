@@ -1,44 +1,28 @@
 use crate::models::AppState;
-use crate::models::oauth::{CallbackParams, OAuthSessionData};
+use crate::models::oauth::{CallbackParams, OAuthSessionData, TokenResponse};
 use axum::{
     extract::{Query, State},
-    http::StatusCode,
-    response::{IntoResponse, Json, Response},
+    response::{IntoResponse, Redirect},
 };
 use oauth2::PkceCodeVerifier;
-use serde::{Deserialize, Serialize};
 use tower_sessions::Session;
-
-#[derive(Serialize)]
-struct ApiResponse {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    message: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    error: Option<String>,
-}
 
 pub async fn callback_handler(
     Query(params): Query<CallbackParams>,
     State(app_state): State<AppState>,
     session: Session,
-) -> Response {
+) -> impl IntoResponse {
     eprintln!(
         "OAuth callback received. Code: {}, State: {}",
         params.code, params.state
     );
 
     // Retrieve OAuth data from session
-    let oauth_data: Option<OAuthSessionData> = match session.get("oauth_data").await {
+    let oauth_session_data: Option<OAuthSessionData> = match session.get("oauth_data").await {
         Ok(data) => data,
         Err(e) => {
             eprintln!("Failed to retrieve session data: {:?}", e);
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ApiResponse {
-                    message: None,
-                    error: Some("Failed to retrieve session data".to_string()),
-                }),
-            )
+            return Redirect::to("http://localhost:5173/auth?status=error&reason=session_error")
                 .into_response();
         }
     };
@@ -46,44 +30,15 @@ pub async fn callback_handler(
     eprintln!(
         "Session ID: {:?} to get oauth retrieved from session: {:?}",
         session.id(),
-        oauth_data
+        oauth_session_data
     );
 
-    let oauth_data = match oauth_data {
+    let oauth_data = match oauth_session_data {
         Some(data) => data,
         None => {
             eprintln!("No oauth_data found in session");
-
-            // Fallback: check for direct PKCE and CSRF keys
-            let pkce_verifier = session
-                .get::<String>("pkce_verifier_secret")
-                .await
-                .ok()
-                .flatten();
-            let csrf_token = session
-                .get::<String>("csrf_token_secret")
-                .await
-                .ok()
-                .flatten();
-
-            if pkce_verifier.is_some() && csrf_token.is_some() {
-                eprintln!("Found direct PKCE and CSRF keys instead");
-                OAuthSessionData {
-                    pkce_verifier_secret: pkce_verifier,
-                    csrf_token_secret: csrf_token,
-                }
-            } else {
-                return (
-                    StatusCode::UNAUTHORIZED,
-                    Json(ApiResponse {
-                        message: None,
-                        error: Some(
-                            "No session data found. Please try logging in again.".to_string(),
-                        ),
-                    }),
-                )
-                    .into_response();
-            }
+            return Redirect::to("http://localhost:5173/auth?status=error&reason=no_session_data")
+                .into_response();
         }
     };
 
@@ -95,16 +50,7 @@ pub async fn callback_handler(
         Some(secret) => secret,
         None => {
             eprintln!("No PKCE verifier found in session");
-            return (
-                StatusCode::UNAUTHORIZED,
-                Json(ApiResponse {
-                    message: None,
-                    error: Some(
-                        "No PKCE verifier found in session. Please try logging in again."
-                            .to_string(),
-                    ),
-                }),
-            )
+            return Redirect::to("http://localhost:5173/auth?status=error&reason=no_pkce")
                 .into_response();
         }
     };
@@ -114,15 +60,7 @@ pub async fn callback_handler(
         Some(token) => token,
         None => {
             eprintln!("No CSRF token found in session");
-            return (
-                StatusCode::UNAUTHORIZED,
-                Json(ApiResponse {
-                    message: None,
-                    error: Some(
-                        "No CSRF token found in session. Please try logging in again.".to_string(),
-                    ),
-                }),
-            )
+            return Redirect::to("http://localhost:5173/auth?status=error&reason=no_csrf")
                 .into_response();
         }
     };
@@ -133,13 +71,7 @@ pub async fn callback_handler(
             "CSRF token mismatch. Expected: {}, Got: {}",
             original_csrf_secret, params.state
         );
-        return (
-            StatusCode::FORBIDDEN,
-            Json(ApiResponse {
-                message: None,
-                error: Some("CSRF token mismatch. Please try logging in again.".to_string()),
-            }),
-        )
+        return Redirect::to("http://localhost:5173/auth?status=error&reason=csrf_mismatch")
             .into_response();
     }
 
@@ -165,14 +97,10 @@ pub async fn callback_handler(
         Ok(res) => res,
         Err(e) => {
             eprintln!("Failed to exchange token: {:?}", e);
-            return (
-                StatusCode::BAD_GATEWAY,
-                Json(ApiResponse {
-                    message: None,
-                    error: Some("Failed to communicate with authentication server".to_string()),
-                }),
+            return Redirect::to(
+                "http://localhost:5173/auth?status=error&reason=token_exchange_failed",
             )
-                .into_response();
+            .into_response();
         }
     };
 
@@ -184,41 +112,27 @@ pub async fn callback_handler(
             .unwrap_or_else(|_| "Could not read error body".to_string());
         eprintln!("Failed to exchange token (HTTP {}): {}", status, error_text);
 
-        let error_status = match status.as_u16() {
-            400 => StatusCode::BAD_REQUEST,
-            401 => StatusCode::UNAUTHORIZED,
-            403 => StatusCode::FORBIDDEN,
-            _ => StatusCode::BAD_GATEWAY,
+        let error_reason = match status.as_u16() {
+            400 => "bad_request",
+            401 => "unauthorized",
+            403 => "forbidden",
+            _ => "token_exchange_error",
         };
-
-        return (
-            error_status,
-            Json(ApiResponse {
-                message: None,
-                error: Some("Failed to exchange authorization code for access token".to_string()),
-            }),
-        )
-            .into_response();
-    }
-
-    #[derive(Deserialize)]
-    struct TokenResponse {
-        access_token: String,
-        refresh_token: Option<String>,
+        return Redirect::to(&format!(
+            "http://localhost:5173/auth?status=error&reason={}",
+            error_reason
+        ))
+        .into_response();
     }
 
     let token_data = match response.json::<TokenResponse>().await {
         Ok(data) => data,
         Err(e) => {
             eprintln!("Failed to parse token response: {:?}", e);
-            return (
-                StatusCode::BAD_GATEWAY,
-                Json(ApiResponse {
-                    message: None,
-                    error: Some("Failed to parse authentication server response".to_string()),
-                }),
+            return Redirect::to(
+                "http://localhost:5173/auth?status=error&reason=token_parse_error",
             )
-                .into_response();
+            .into_response();
         }
     };
 
@@ -228,13 +142,7 @@ pub async fn callback_handler(
         .await
     {
         eprintln!("Failed to store access token in session: {:?}", e);
-        return (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ApiResponse {
-                message: None,
-                error: Some("Failed to store authentication data".to_string()),
-            }),
-        )
+        return Redirect::to("http://localhost:5173/auth?status=error&reason=session_store_error")
             .into_response();
     }
 
@@ -247,12 +155,8 @@ pub async fn callback_handler(
         // session.insert("supabase_refresh_token", refresh_token).await.ok();
     }
 
-    (
-        StatusCode::OK,
-        Json(ApiResponse {
-            message: Some("Authentication successful".to_string()),
-            error: None,
-        }),
-    )
-        .into_response()
+    eprintln!("Authentication successful");
+
+    // Redirect back to frontend on success
+    Redirect::to("http://localhost:5173/auth?status=success").into_response()
 }

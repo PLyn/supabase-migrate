@@ -11,3 +11,9 @@ pub struct CallbackParams {
     pub code: String,
     pub state: String,
 }
+
+#[derive(Deserialize)]
+pub struct TokenResponse {
+    pub access_token: String,
+    pub refresh_token: Option<String>,
+}

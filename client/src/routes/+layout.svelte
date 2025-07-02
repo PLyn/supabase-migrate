@@ -1,10 +1,6 @@
 <!-- src/routes/+layout.svelte -->
 <script>
 	import '../app.css';
-
-	function handleLogin() {
-		window.location.href = '/connect-supabase/login';
-	}
 </script>
 
 <div class="app">
@@ -21,10 +17,6 @@
 					<a href="/monitor" class="nav-link"> Monitor </a>
 					<a href="/metrics" class="nav-link"> Metrics </a>
 				</nav>
-
-				<button class="login-btn" onclick={handleLogin} aria-label="Sign in with Supabase">
-					Sign in with Supabase
-				</button>
 			</div>
 		</div>
 	</header>
@@ -130,41 +122,6 @@
 		border-bottom-color: #3182ce;
 	}
 
-	/* Login Button Styles */
-	.login-btn {
-		display: inline-flex;
-		align-items: center;
-		justify-content: center;
-		padding: 0.75rem 1.5rem;
-		background-color: #3182ce;
-		color: white;
-		border: 2px solid #3182ce;
-		border-radius: 0.5rem;
-		font-size: 0.95rem;
-		font-weight: 500;
-		text-decoration: none;
-		cursor: pointer;
-		transition: all 0.2s ease-in-out;
-		white-space: nowrap;
-	}
-
-	.login-btn:hover {
-		background-color: #2c5282;
-		border-color: #2c5282;
-		transform: translateY(-1px);
-		box-shadow: 0 4px 12px rgba(49, 130, 206, 0.3);
-	}
-
-	.login-btn:active {
-		transform: translateY(0);
-		box-shadow: 0 2px 4px rgba(49, 130, 206, 0.3);
-	}
-
-	.login-btn:focus {
-		outline: none;
-		box-shadow: 0 0 0 3px rgba(66, 153, 225, 0.3);
-	}
-
 	/* Main Content */
 	.main {
 		flex: 1;
@@ -195,12 +152,6 @@
 		.nav-link {
 			font-size: 0.95rem;
 		}
-
-		.login-btn {
-			align-self: center;
-			width: auto;
-			min-width: 200px;
-		}
 	}
 
 	@media (max-width: 480px) {
@@ -219,12 +170,6 @@
 
 		.site-title {
 			font-size: 1.25rem;
-		}
-
-		.login-btn {
-			font-size: 0.9rem;
-			padding: 0.65rem 1.25rem;
-			min-width: 180px;
 		}
 	}
 
@@ -255,26 +200,6 @@
 		.nav-link {
 			border-bottom-width: 3px;
 		}
-
-		.login-btn {
-			border-width: 3px;
-		}
-	}
-
-	/* Reduced Motion */
-	@media (prefers-reduced-motion: reduce) {
-		.nav-link,
-		.login-btn {
-			transition: none;
-		}
-
-		.login-btn:hover {
-			transform: none;
-		}
-
-		.login-btn:active {
-			transform: none;
-		}
 	}
 
 	/* Print Styles */
@@ -284,24 +209,12 @@
 			border-bottom: 2px solid #000;
 		}
 
-		.login-btn {
-			display: none;
-		}
-
 		.nav-link {
 			color: #000 !important;
 		}
 
 		.site-title {
 			color: #000 !important;
-		}
-	}
-
-	/* Focus Management for Keyboard Navigation */
-	@media (prefers-reduced-motion: no-preference) {
-		.nav-link:focus,
-		.login-btn:focus {
-			transition: box-shadow 0.15s ease-in-out;
 		}
 	}
 </style>
