@@ -22,7 +22,7 @@ pub async fn callback_handler(
         Ok(data) => data,
         Err(e) => {
             eprintln!("Failed to retrieve session data: {:?}", e);
-            return Redirect::to("http://localhost:5173/auth?status=error&reason=session_error")
+            return Redirect::to("http://0.0.0.0:5173/auth?status=error&reason=session_error")
                 .into_response();
         }
     };
@@ -37,7 +37,7 @@ pub async fn callback_handler(
         Some(data) => data,
         None => {
             eprintln!("No oauth_data found in session");
-            return Redirect::to("http://localhost:5173/auth?status=error&reason=no_session_data")
+            return Redirect::to("http://0.0.0.0:5173/auth?status=error&reason=no_session_data")
                 .into_response();
         }
     };
@@ -50,7 +50,7 @@ pub async fn callback_handler(
         Some(secret) => secret,
         None => {
             eprintln!("No PKCE verifier found in session");
-            return Redirect::to("http://localhost:5173/auth?status=error&reason=no_pkce")
+            return Redirect::to("http://0.0.0.0:5173/auth?status=error&reason=no_pkce")
                 .into_response();
         }
     };
@@ -60,7 +60,7 @@ pub async fn callback_handler(
         Some(token) => token,
         None => {
             eprintln!("No CSRF token found in session");
-            return Redirect::to("http://localhost:5173/auth?status=error&reason=no_csrf")
+            return Redirect::to("http://0.0.0.0:5173/auth?status=error&reason=no_csrf")
                 .into_response();
         }
     };
@@ -71,7 +71,7 @@ pub async fn callback_handler(
             "CSRF token mismatch. Expected: {}, Got: {}",
             original_csrf_secret, params.state
         );
-        return Redirect::to("http://localhost:5173/auth?status=error&reason=csrf_mismatch")
+        return Redirect::to("http://0.0.0.0:5173/auth?status=error&reason=csrf_mismatch")
             .into_response();
     }
 
@@ -98,7 +98,7 @@ pub async fn callback_handler(
         Err(e) => {
             eprintln!("Failed to exchange token: {:?}", e);
             return Redirect::to(
-                "http://localhost:5173/auth?status=error&reason=token_exchange_failed",
+                "http://0.0.0.0:5173/auth?status=error&reason=token_exchange_failed",
             )
             .into_response();
         }
@@ -119,7 +119,7 @@ pub async fn callback_handler(
             _ => "token_exchange_error",
         };
         return Redirect::to(&format!(
-            "http://localhost:5173/auth?status=error&reason={}",
+            "http://0.0.0.0:5173/auth?status=error&reason={}",
             error_reason
         ))
         .into_response();
@@ -129,10 +129,8 @@ pub async fn callback_handler(
         Ok(data) => data,
         Err(e) => {
             eprintln!("Failed to parse token response: {:?}", e);
-            return Redirect::to(
-                "http://localhost:5173/auth?status=error&reason=token_parse_error",
-            )
-            .into_response();
+            return Redirect::to("http://0.0.0.0:5173/auth?status=error&reason=token_parse_error")
+                .into_response();
         }
     };
 
@@ -142,7 +140,7 @@ pub async fn callback_handler(
         .await
     {
         eprintln!("Failed to store access token in session: {:?}", e);
-        return Redirect::to("http://localhost:5173/auth?status=error&reason=session_store_error")
+        return Redirect::to("http://0.0.0.0:5173/auth?status=error&reason=session_store_error")
             .into_response();
     }
 
@@ -158,5 +156,5 @@ pub async fn callback_handler(
     eprintln!("Authentication successful");
 
     // Redirect back to frontend on success
-    Redirect::to("http://localhost:5173/auth?status=success").into_response()
+    Redirect::to("http://0.0.0.0:5173/auth?status=success").into_response()
 }

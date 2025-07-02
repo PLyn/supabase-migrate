@@ -41,9 +41,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .layer(session_layer)
         .with_state(app_state);
 
-    eprintln!("listening on http://{}", "localhost:10000");
+    eprintln!("listening on http://{}", "0.0.0.0:10000");
 
-    let listener = tokio::net::TcpListener::bind("localhost:10000").await?;
+    let listener = tokio::net::TcpListener::bind("0.0.0.0:10000").await?;
     axum::serve(listener, app.into_make_service()).await?;
 
     Ok(())
