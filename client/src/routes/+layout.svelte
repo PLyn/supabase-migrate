@@ -1,5 +1,6 @@
 <script>
     import "../app.css";
+    import AuthComponent from "$lib/components/auth_component.svelte";
 </script>
 
 <!-- HTML -->
@@ -16,7 +17,7 @@
                     <a href="/metrics" class="nav-link"> Metrics </a>
                 </nav>
 
-                <a href="/login" class="nav-link"> Login </a>
+                <AuthComponent />
             </div>
         </div>
     </header>
