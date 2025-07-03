@@ -4,9 +4,13 @@ mod models;
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Changed Box to Box<dyn std::error::Error> for better error handling
-    use axum::{Router, routing::get};
+    use crate::handlers::auth::{signout_handler, status_handler};
+    use axum::{
+        Router,
+        routing::{get, post},
+    };
     use handlers::migrate::preview_handler;
-    use handlers::oauth::{callback_handler, login_handler, status_handler};
+    use handlers::oauth::{callback_handler, login_handler};
     use handlers::test_handler;
     use models::{AppConfig, AppState};
     use reqwest::Method;
@@ -46,6 +50,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/", get(test_handler))
         .route("/preview", get(preview_handler))
         .route("/auth", get(status_handler))
+        .route("/signout", post(signout_handler))
         .route("/connect-supabase/login", get(login_handler))
         .route("/connect-supabase/oauth2/callback", get(callback_handler))
         .layer(cors) // Add CORS layer

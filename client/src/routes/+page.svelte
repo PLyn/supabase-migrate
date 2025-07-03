@@ -1,5 +1,6 @@
 <!-- src/routes/+page.svelte -->
 <script>
+    import SignoutButton from "$lib/components/signout_button.svelte";
     import { onMount } from "svelte";
 
     let is_authenticated = $state(false);
@@ -23,15 +24,13 @@
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`);
             }
+
             let response_text = await response.json();
-            console.log(response_text);
             is_authenticated = response_text;
-            console.log("is_auth: " + is_authenticated);
         } catch (err) {
-            console.error("Error fetching preview:", err);
+            console.error("Signout error:", err);
         } finally {
-            is_loading = false; // Set loading to false regardless of success/failure
-            console.log("finally");
+            is_loading = false;
         }
     });
 </script>
@@ -59,9 +58,10 @@
                 Authorize Supabase
             </a>
         </div>
+    {:else}
+        <SignoutButton />
     {/if}
 
-    <!-- Loading skeleton or authentication status -->
     {#if is_loading}
         <div class="auth-skeleton">
             <div class="skeleton-header"></div>
