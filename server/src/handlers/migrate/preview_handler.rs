@@ -1,22 +1,24 @@
 use crate::models::AppState;
-use crate::models::migrate::{DiffEntry, ProjectConfig};
+use crate::models::migrate::{ProjectDiffEntry, ProjectDiffs};
 
 use axum::{
+    Json,
     extract::{Query, State},
     http::StatusCode,
-    response::{IntoResponse, Json},
+    response::IntoResponse,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 use std::collections::HashMap;
 use tower_sessions::Session;
+use tower_sessions::session::Error;
 
 // Define the query parameters for the endpoint
 #[derive(Debug, Deserialize)]
 pub struct PreviewQuery {
     pub source_id: String,
     pub dest_id: String,
-    pub auth: Option<bool>,
+    pub auth: bool,
     pub postgrest: Option<bool>,
     pub edge_functions: Option<bool>,
     pub secrets: Option<bool>,
@@ -26,64 +28,46 @@ pub struct PreviewQuery {
 // Define the response structure
 #[derive(Debug, Serialize)]
 pub struct PreviewResponse {
-    pub configs: Vec<ProjectConfig>,
-}
-
-// Define error response
-#[derive(Debug, Serialize)]
-pub struct ErrorResponse {
-    pub error: String,
-}
-
-// Custom error type for this endpoint
-#[derive(Debug)]
-pub enum PreviewError {
-    Unauthorized,
-    ApiError(String),
-    JsonError(serde_json::Error),
-    SessionError(String),
-}
-
-impl IntoResponse for PreviewError {
-    fn into_response(self) -> axum::response::Response {
-        let (status, error_message) = match self {
-            PreviewError::Unauthorized => (StatusCode::UNAUTHORIZED, "Unauthorized".to_string()),
-            PreviewError::ApiError(msg) => (StatusCode::INTERNAL_SERVER_ERROR, msg),
-            PreviewError::JsonError(err) => {
-                (StatusCode::BAD_REQUEST, format!("JSON error: {}", err))
-            }
-            PreviewError::SessionError(msg) => (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                format!("Session error: {}", msg),
-            ),
-        };
-
-        let body = Json(ErrorResponse {
-            error: error_message,
-        });
-
-        (status, body).into_response()
-    }
-}
-
-impl From<serde_json::Error> for PreviewError {
-    fn from(err: serde_json::Error) -> Self {
-        PreviewError::JsonError(err)
-    }
+    pub configs: Vec<ProjectDiffs>,
 }
 
 pub async fn preview_handler(
     State(_app_state): State<AppState>,
     Query(params): Query<PreviewQuery>,
     session: Session,
-) -> Result<impl IntoResponse, PreviewError> {
-    // TODO: Check authentication
+) -> impl IntoResponse {
+    let token_result: Result<Option<String>, Error> = session.get("supabase_access_token").await;
+    let Ok(Some(token)) = token_result else {
+        return (
+            StatusCode::UNAUTHORIZED,
+            format!("Management API is Unauthorized"),
+        );
+    };
 
-    let mut project_config: Vec<ProjectConfig> = Vec::new();
+    let mut project_config: Vec<ProjectDiffs> = Vec::new();
     let mut config_json: Vec<(String, String, String)> = Vec::new();
 
+    if params.auth {
+        let src_url = format!("/projects/{}/config/auth", params.source_id);
+        let Ok(src_cfg) = mgmt_api_get(&token, src_url).await else {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("Error fetching source auth config"),
+            );
+        };
+
+        let dest_url = format!("/projects/{}/config/auth", params.dest_id);
+        let Ok(dest_cfg) = mgmt_api_get(&token, dest_url).await else {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("Error fetching destination auth config"),
+            );
+        };
+        config_json.push(("Auth".to_string(), src_cfg, dest_cfg));
+    }
+
     // Check Auth config
-    if params.auth.unwrap_or(false) {
+    /* if params.auth.unwrap_or(false) {
         let source_config = mgmt_api_get(
             &session,
             format!("/projects/{}/config/auth", params.source_id),
@@ -181,46 +165,39 @@ pub async fn preview_handler(
             // Don't fail the request for session errors, just log
         }
     }
+    */
 
-    Ok(Json(PreviewResponse {
-        configs: project_config,
-    }))
+    (StatusCode::NOT_FOUND, format!("Not Found:"))
 }
 
-pub async fn mgmt_api_get(session: &Session, url: String) -> Result<String, PreviewError> {
+pub async fn mgmt_api_get(token: &String, url: String) -> Result<String, String> {
     use reqwest::header::{ACCEPT, AUTHORIZATION};
 
     let constructed_url = format!("https://api.supabase.com/v1{}", url);
 
-    let token_option: Option<String> = session.get("supabase_access_token").await.map_err(|e| {
-        PreviewError::SessionError(format!("Failed to get token from session: {:?}", e))
-    })?;
-
-    let token = token_option.ok_or_else(|| PreviewError::Unauthorized)?;
-
     let client = reqwest::Client::new();
-    let api_response = client
+    let api_result = client
         .get(&constructed_url)
         .header(AUTHORIZATION, format!("Bearer {}", token))
         .header(ACCEPT, "application/json")
         .send()
-        .await
-        .map_err(|e| PreviewError::ApiError(format!("Request failed: {:?}", e)))?;
+        .await;
 
-    if api_response.status().is_success() {
-        api_response.text().await.map_err(|e| {
-            PreviewError::ApiError(format!("Error reading response body as text: {:?}", e))
-        })
+    let Ok(api_response) = api_result else {
+        return Err("Error getting response from API".to_string());
+    };
+    let response_status = &api_response.status().is_success();
+    let status_code = &api_response.status().as_u16();
+
+    let Ok(api_text) = api_response.text().await else {
+        return Err("Error reading response body as text".to_string());
+    };
+
+    if *response_status {
+        Ok(api_text)
     } else {
-        let status_code = api_response.status().as_u16();
-        let error_text = api_response
-            .text()
-            .await
-            .unwrap_or_else(|e| format!("Error reading response body: {}", e));
-        Err(PreviewError::ApiError(format!(
-            "HTTP request failed with status {}: {}",
-            status_code, error_text
-        )))
+        let error_text = format!("{} error - {}", *status_code, api_text);
+        Ok(error_text)
     }
 }
 
@@ -228,24 +205,20 @@ pub async fn json_diff(
     config_type: String,
     source_value: Value,
     dest_value: Value,
-) -> Result<Option<ProjectConfig>, PreviewError> {
-    let diff_entries = calculate_diff(&config_type, &source_value, &dest_value)?;
+) -> Option<ProjectDiffs> {
+    let diff_entries = calculate_diff(&config_type, &source_value, &dest_value);
 
     if diff_entries.is_empty() {
-        Ok(None)
+        None
     } else {
-        Ok(Some(ProjectConfig {
+        Some(ProjectDiffs {
             name: config_type,
             diffs: diff_entries,
-        }))
+        })
     }
 }
 
-fn calculate_diff(
-    config_type: &str,
-    source: &Value,
-    dest: &Value,
-) -> Result<Vec<DiffEntry>, PreviewError> {
+fn calculate_diff(config_type: &str, source: &Value, dest: &Value) -> Vec<ProjectDiffEntry> {
     let mut diff_entries = Vec::new();
 
     // Pre-filter arrays if this is Secrets config
@@ -278,7 +251,7 @@ fn calculate_diff(
         diff_values("", source, dest, &mut diff_entries);
     }
 
-    Ok(diff_entries)
+    diff_entries
 }
 
 fn is_supabase_secret(value: &Value) -> bool {
@@ -290,14 +263,14 @@ fn is_supabase_secret(value: &Value) -> bool {
     false
 }
 
-fn diff_values(path: &str, source: &Value, dest: &Value, diffs: &mut Vec<DiffEntry>) {
+fn diff_values(path: &str, source: &Value, dest: &Value, diffs: &mut Vec<ProjectDiffEntry>) {
     use Value::*;
 
     match (source, dest) {
         (Array(src), Array(dst)) => diff_arrays(path, src, dst, diffs),
         (Object(src), Object(dst)) => diff_objects(path, src, dst, diffs),
         _ if source != dest => {
-            diffs.push(DiffEntry {
+            diffs.push(ProjectDiffEntry {
                 key: if path.is_empty() { "root" } else { path }.to_string(),
                 source_value: format_value(source),
                 dest_value: format_value(dest),
@@ -307,7 +280,7 @@ fn diff_values(path: &str, source: &Value, dest: &Value, diffs: &mut Vec<DiffEnt
     }
 }
 
-fn diff_arrays(path: &str, src: &[Value], dst: &[Value], diffs: &mut Vec<DiffEntry>) {
+fn diff_arrays(path: &str, src: &[Value], dst: &[Value], diffs: &mut Vec<ProjectDiffEntry>) {
     let src_map = to_id_map(src);
     let dst_map = to_id_map(dst);
 
@@ -317,7 +290,7 @@ fn diff_arrays(path: &str, src: &[Value], dst: &[Value], diffs: &mut Vec<DiffEnt
         }
         (Some(src_ids), None) => {
             for (id, val) in src_ids {
-                diffs.push(DiffEntry {
+                diffs.push(ProjectDiffEntry {
                     key: format!(
                         "{}{}id:{}",
                         path,
@@ -331,7 +304,7 @@ fn diff_arrays(path: &str, src: &[Value], dst: &[Value], diffs: &mut Vec<DiffEnt
         }
         (None, Some(dst_ids)) => {
             for (id, val) in dst_ids {
-                diffs.push(DiffEntry {
+                diffs.push(ProjectDiffEntry {
                     key: format!(
                         "{}{}id:{}",
                         path,
@@ -369,7 +342,7 @@ fn diff_by_id(
     path: &str,
     src_map: &HashMap<String, &Value>,
     dst_map: &mut HashMap<String, &Value>,
-    diffs: &mut Vec<DiffEntry>,
+    diffs: &mut Vec<ProjectDiffEntry>,
 ) {
     for (id, src_val) in src_map {
         let item_path = format!(
@@ -382,7 +355,7 @@ fn diff_by_id(
         if let Some(dst_val) = dst_map.remove(id) {
             diff_values(&item_path, src_val, &dst_val, diffs);
         } else {
-            diffs.push(DiffEntry {
+            diffs.push(ProjectDiffEntry {
                 key: item_path,
                 source_value: format_value(src_val),
                 dest_value: "null".to_string(),
@@ -391,7 +364,7 @@ fn diff_by_id(
     }
 
     for (id, dst_val) in dst_map.iter() {
-        diffs.push(DiffEntry {
+        diffs.push(ProjectDiffEntry {
             key: format!(
                 "{}{}id:{}",
                 path,
@@ -404,7 +377,7 @@ fn diff_by_id(
     }
 }
 
-fn diff_by_index(path: &str, src: &[Value], dst: &[Value], diffs: &mut Vec<DiffEntry>) {
+fn diff_by_index(path: &str, src: &[Value], dst: &[Value], diffs: &mut Vec<ProjectDiffEntry>) {
     let max_len = src.len().max(dst.len());
 
     for i in 0..max_len {
@@ -413,7 +386,7 @@ fn diff_by_index(path: &str, src: &[Value], dst: &[Value], diffs: &mut Vec<DiffE
         match (src.get(i), dst.get(i)) {
             (Some(s), Some(d)) => {
                 if s.is_object() && d.is_object() && s != d {
-                    diffs.push(DiffEntry {
+                    diffs.push(ProjectDiffEntry {
                         key: item_path,
                         source_value: format_value(s),
                         dest_value: format_value(d),
@@ -422,12 +395,12 @@ fn diff_by_index(path: &str, src: &[Value], dst: &[Value], diffs: &mut Vec<DiffE
                     diff_values(&item_path, s, d, diffs);
                 }
             }
-            (Some(s), None) => diffs.push(DiffEntry {
+            (Some(s), None) => diffs.push(ProjectDiffEntry {
                 key: item_path,
                 source_value: format_value(s),
                 dest_value: "null".to_string(),
             }),
-            (None, Some(d)) => diffs.push(DiffEntry {
+            (None, Some(d)) => diffs.push(ProjectDiffEntry {
                 key: item_path,
                 source_value: "null".to_string(),
                 dest_value: format_value(d),
@@ -441,7 +414,7 @@ fn diff_objects(
     path: &str,
     src: &Map<String, Value>,
     dst: &Map<String, Value>,
-    diffs: &mut Vec<DiffEntry>,
+    diffs: &mut Vec<ProjectDiffEntry>,
 ) {
     for (key, src_val) in src {
         let field_path = if path.is_empty() {
@@ -452,7 +425,7 @@ fn diff_objects(
 
         match dst.get(key) {
             Some(dst_val) => diff_values(&field_path, src_val, dst_val, diffs),
-            None => diffs.push(DiffEntry {
+            None => diffs.push(ProjectDiffEntry {
                 key: field_path,
                 source_value: format_value(src_val),
                 dest_value: "null".to_string(),
@@ -467,7 +440,7 @@ fn diff_objects(
             } else {
                 format!("{}.{}", path, key)
             };
-            diffs.push(DiffEntry {
+            diffs.push(ProjectDiffEntry {
                 key: field_path,
                 source_value: "null".to_string(),
                 dest_value: format_value(dst_val),
@@ -495,7 +468,7 @@ mod tests {
         let source: Value = serde_json::from_str(r#"{"a": 1, "b": 2}"#).unwrap();
         let dest: Value = serde_json::from_str(r#"{"a": 1, "b": 3, "c": 4}"#).unwrap();
 
-        let result = json_diff("test".to_string(), source, dest).await.unwrap();
+        let result = json_diff("test".to_string(), source, dest).await;
         let config = result.unwrap();
 
         assert_eq!(config.diffs.len(), 2); // b changed, c added
@@ -524,9 +497,7 @@ mod tests {
         let source_value: Value = serde_json::from_str(source).unwrap();
         let dest_value: Value = serde_json::from_str(dest).unwrap();
 
-        let result = json_diff("test".to_string(), source_value, dest_value)
-            .await
-            .unwrap();
+        let result = json_diff("test".to_string(), source_value, dest_value).await;
         let config = result.unwrap();
 
         assert!(!config.diffs.iter().any(|d| d.key == "length"));
@@ -542,9 +513,7 @@ mod tests {
         let source_value: Value = serde_json::from_str(source).unwrap();
         let dest_value: Value = serde_json::from_str(dest).unwrap();
 
-        let result = json_diff("test".to_string(), source_value, dest_value)
-            .await
-            .unwrap();
+        let result = json_diff("test".to_string(), source_value, dest_value).await;
         assert!(result.is_none());
     }
 
@@ -575,9 +544,7 @@ mod tests {
         let source_value: Value = serde_json::from_str(source).unwrap();
         let dest_value: Value = serde_json::from_str(dest).unwrap();
 
-        let result = json_diff("test".to_string(), source_value, dest_value)
-            .await
-            .unwrap();
+        let result = json_diff("test".to_string(), source_value, dest_value).await;
         let config = result.unwrap();
 
         assert_eq!(config.diffs.len(), 3);
@@ -609,9 +576,7 @@ mod tests {
         let source_value: Value = serde_json::from_str(source).unwrap();
         let dest_value: Value = serde_json::from_str(dest).unwrap();
 
-        let result = json_diff("test".to_string(), source_value, dest_value)
-            .await
-            .unwrap();
+        let result = json_diff("test".to_string(), source_value, dest_value).await;
         let config = result.unwrap();
 
         // No length diff
@@ -646,9 +611,7 @@ mod tests {
         let source_value: Value = serde_json::from_str(source).unwrap();
         let dest_value: Value = serde_json::from_str(dest).unwrap();
 
-        let result = json_diff("Secrets".to_string(), source_value, dest_value)
-            .await
-            .unwrap();
+        let result = json_diff("Secrets".to_string(), source_value, dest_value).await;
         let config = result.unwrap();
 
         // After filtering SUPABASE_ secrets:
@@ -685,9 +648,7 @@ mod tests {
         let source_value: Value = serde_json::from_str(source).unwrap();
         let dest_value: Value = serde_json::from_str(dest).unwrap();
 
-        let result = json_diff("test".to_string(), source_value, dest_value)
-            .await
-            .unwrap();
+        let result = json_diff("test".to_string(), source_value, dest_value).await;
         let config = result.unwrap();
 
         // Should report the whole object as changed

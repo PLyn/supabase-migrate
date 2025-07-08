@@ -1,263 +1,636 @@
-<!-- src/routes/migrate/+page.svelte -->
 <script lang="ts">
-    let isLoading = $state(false);
-    let previewData = $state(null);
-    let error = $state<string | null>(null);
+    interface Post {
+        id: string;
+        name: string;
+        region: string;
+        status: string;
+    }
 
-    async function fetchPreview() {
-        console.log("Fetching preview...");
-        isLoading = true;
-        error = null;
+    interface Config {
+        diffs: Array<{
+            key: string;
+            source_value: string;
+            dest_value: string;
+        }>;
+    }
 
+    // State using runes
+    let projects = $state<Post[]>([]);
+    let sourceId = $state("");
+    let destId = $state("");
+    let authConfigEnabled = $state(false);
+    let loading = $state(false);
+    let results = $state<{ name: string; diffs: Config["diffs"] }[]>([]);
+    let migrationStatus = $state("");
+    let activeAccordion = $state(1);
+
+    // Derived state using $derived
+    let sourceProject = $derived(projects.find((p) => p.id === sourceId));
+    let destProject = $derived(projects.find((p) => p.id === destId));
+    let sourceValid = $derived(
+        sourceId && sourceProject?.status !== "INACTIVE",
+    );
+    let destValid = $derived(destId && destProject?.status !== "INACTIVE");
+    let projectsValid = $derived(
+        sourceValid && destValid && sourceId !== destId,
+    );
+    let canPreview = $derived(projectsValid && authConfigEnabled);
+
+    // Mock functions with proper types
+    async function getProjects(): Promise<Post[]> {
+        return [
+            {
+                id: "proj1",
+                name: "Project One",
+                region: "us-east-1",
+                status: "ACTIVE",
+            },
+            {
+                id: "proj2",
+                name: "Project Two",
+                region: "us-west-2",
+                status: "ACTIVE",
+            },
+            {
+                id: "proj3",
+                name: "Project Three",
+                region: "eu-west-1",
+                status: "INACTIVE",
+            },
+        ];
+    }
+
+    async function generatePreview(
+        sourceId: string,
+        destId: string,
+    ): Promise<{ name: string; diffs: Config["diffs"] }[]> {
+        loading = true;
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+        loading = false;
+
+        return [
+            {
+                name: "Auth Configuration",
+                diffs: [
+                    {
+                        key: "jwt_secret",
+                        source_value: "old_secret_123",
+                        dest_value: "new_secret_456",
+                    },
+                    {
+                        key: "jwt_expiry",
+                        source_value: "3600",
+                        dest_value: "7200",
+                    },
+                    {
+                        key: "enable_signup",
+                        source_value: "true",
+                        dest_value: "false",
+                    },
+                ],
+            },
+        ];
+    }
+
+    async function migrateConfig(
+        results: { name: string; diffs: Config["diffs"] }[],
+        sourceId: string,
+        destId: string,
+    ): Promise<{ name: string; diffs: Config["diffs"] }[]> {
+        loading = true;
+        await new Promise((resolve) => setTimeout(resolve, 1500));
+        loading = false;
+
+        return [
+            {
+                name: "Auth Configuration",
+                diffs: [
+                    {
+                        key: "jwt_secret",
+                        source_value: "Successfully migrated",
+                        dest_value: "new_secret_456",
+                    },
+                    {
+                        key: "jwt_expiry",
+                        source_value: "Successfully migrated",
+                        dest_value: "7200",
+                    },
+                    {
+                        key: "enable_signup",
+                        source_value: "Successfully migrated",
+                        dest_value: "false",
+                    },
+                ],
+            },
+        ];
+    }
+
+    // Event handlers
+    async function handlePreview() {
         try {
-            // TODO Update this to pull from env so that deployed version works instead of local only
-            const response = await fetch("http://localhost:10000/preview", {
-                method: "GET",
-                headers: {
-                    "Content-Type": "application/json",
-                    // Add any auth headers if needed
-                    // 'Authorization': `Bearer ${token}`
-                },
-                // Add CORS mode if needed
-                mode: "cors",
-            });
-
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
-
-            const data = await response.json();
-            previewData = data;
-            console.log("Preview data:", data);
-        } catch (err) {
-            console.error("Error fetching preview:", err);
-            error =
-                err instanceof Error
-                    ? err.message
-                    : "An unknown error occurred";
-        } finally {
-            isLoading = false;
+            results = await generatePreview(sourceId, destId);
+            activeAccordion = 3;
+        } catch (error) {
+            console.error("Preview failed:", error);
         }
     }
+
+    async function handleMigrate() {
+        try {
+            const migrationResults = await migrateConfig(
+                results,
+                sourceId,
+                destId,
+            );
+            results = migrationResults;
+            migrationStatus = "Success";
+            activeAccordion = 4;
+        } catch (error) {
+            migrationStatus =
+                error instanceof Error ? error.message : "Unknown error";
+            activeAccordion = 4;
+        }
+    }
+
+    function toggleAccordion(section: number) {
+        activeAccordion = activeAccordion === section ? 0 : section;
+    }
+
+    // Load projects on mount using $effect
+    $effect(() => {
+        getProjects().then((data) => {
+            projects = data;
+            if (data.length > 0) {
+                sourceId = data[0].id;
+                destId = data[0].id;
+            }
+        });
+    });
 </script>
 
-<div class="container">
-    <div class="form-group">
-        <label for="preview-button" class="label">Generate Preview</label>
+<div class="migration-container">
+    <h1>Auth Configuration Migration</h1>
+
+    <!-- Project Selection Accordion -->
+    <div class="accordion-item">
         <button
-            id="preview-button"
-            onclick={fetchPreview}
-            disabled={isLoading}
-            class="btn btn-primary"
-            aria-describedby={error ? "error-message" : undefined}
+            class="accordion-header"
+            class:active={activeAccordion === 1}
+            onclick={() => toggleAccordion(1)}
         >
-            {isLoading ? "Generating..." : "Generate"}
+            1. Select Projects
+            <span class="accordion-icon"
+                >{activeAccordion === 1 ? "−" : "+"}</span
+            >
         </button>
+
+        {#if activeAccordion === 1}
+            <div class="accordion-content">
+                <div class="form-group">
+                    <label for="source">Source Project:</label>
+                    <select id="source" bind:value={sourceId}>
+                        {#each projects as project}
+                            <option value={project.id}>
+                                {project.id} - {project.name} - {project.region}
+                                - {project.status}
+                            </option>
+                        {/each}
+                    </select>
+                    {#if sourceId && !sourceValid}
+                        <p class="error">
+                            Selected source project is INACTIVE.
+                        </p>
+                    {/if}
+                </div>
+
+                <div class="arrow-container">
+                    <div class="animated-arrow">↓</div>
+                </div>
+
+                <div class="form-group">
+                    <label for="dest">Destination Project:</label>
+                    <select id="dest" bind:value={destId}>
+                        {#each projects as project}
+                            <option value={project.id}>
+                                {project.id} - {project.name} - {project.region}
+                                - {project.status}
+                            </option>
+                        {/each}
+                    </select>
+                    {#if destId && !destValid}
+                        <p class="error">
+                            Selected destination project is INACTIVE.
+                        </p>
+                    {/if}
+                </div>
+
+                {#if sourceId === destId}
+                    <p class="error">
+                        Source and destination projects cannot be the same.
+                    </p>
+                {/if}
+
+                {#if projectsValid}
+                    <p class="success">Projects validated successfully!</p>
+                    <button
+                        class="btn-primary"
+                        onclick={() => toggleAccordion(2)}
+                    >
+                        Next: Configure Items
+                    </button>
+                {/if}
+            </div>
+        {/if}
     </div>
 
-    {#if error}
-        <div class="alert alert-error" role="alert" id="error-message">
-            <strong>Error:</strong>
-            {error}
-        </div>
-    {/if}
-
-    {#if previewData}
-        <div
-            class="alert alert-success"
-            role="region"
-            aria-labelledby="preview-heading"
+    <!-- Configuration Selection Accordion -->
+    <div class="accordion-item">
+        <button
+            class="accordion-header"
+            class:active={activeAccordion === 2}
+            class:disabled={!projectsValid}
+            onclick={() => projectsValid && toggleAccordion(2)}
         >
-            <h3 id="preview-heading" class="alert-title">Preview Data:</h3>
-            <pre class="code-block">{JSON.stringify(previewData, null, 2)}</pre>
-        </div>
-    {/if}
+            2. Select Configuration Items
+            <span class="accordion-icon"
+                >{activeAccordion === 2 ? "−" : "+"}</span
+            >
+        </button>
+
+        {#if activeAccordion === 2}
+            <div class="accordion-content">
+                <div class="config-options">
+                    <label class="checkbox-label">
+                        <input
+                            type="checkbox"
+                            bind:checked={authConfigEnabled}
+                        />
+                        <span>Auth Configuration</span>
+                    </label>
+                </div>
+
+                {#if authConfigEnabled}
+                    <button class="btn-primary" onclick={handlePreview}>
+                        Preview Changes
+                    </button>
+                {/if}
+            </div>
+        {/if}
+    </div>
+
+    <!-- Preview Results Accordion -->
+    <div class="accordion-item">
+        <button
+            class="accordion-header"
+            class:active={activeAccordion === 3}
+            class:disabled={!canPreview}
+            onclick={() => canPreview && toggleAccordion(3)}
+        >
+            3. Preview Changes
+            <span class="accordion-icon"
+                >{activeAccordion === 3 ? "−" : "+"}</span
+            >
+        </button>
+
+        {#if activeAccordion === 3}
+            <div class="accordion-content">
+                {#if loading}
+                    <div class="loading">
+                        <div class="spinner"></div>
+                        <p>Loading preview...</p>
+                    </div>
+                {:else if results.length > 0}
+                    <div class="results-container">
+                        {#each results as config}
+                            <div class="config-section">
+                                <h3>{config.name}</h3>
+                                <table class="results-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Config Item</th>
+                                            <th>Source</th>
+                                            <th>Destination</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {#each config.diffs as diff}
+                                            <tr>
+                                                <td>{diff.key}</td>
+                                                <td>{diff.source_value}</td>
+                                                <td>{diff.dest_value}</td>
+                                            </tr>
+                                        {/each}
+                                    </tbody>
+                                </table>
+                            </div>
+                        {/each}
+
+                        <button
+                            class="btn-primary migrate-btn"
+                            onclick={handleMigrate}
+                        >
+                            Migrate Configuration!
+                        </button>
+                    </div>
+                {/if}
+            </div>
+        {/if}
+    </div>
+
+    <!-- Migration Results Accordion -->
+    <div class="accordion-item">
+        <button
+            class="accordion-header"
+            class:active={activeAccordion === 4}
+            class:disabled={!migrationStatus}
+            onclick={() => migrationStatus && toggleAccordion(4)}
+        >
+            4. Migration Results
+            <span class="accordion-icon"
+                >{activeAccordion === 4 ? "−" : "+"}</span
+            >
+        </button>
+
+        {#if activeAccordion === 4}
+            <div class="accordion-content">
+                {#if loading}
+                    <div class="loading">
+                        <div class="spinner"></div>
+                        <p>Migrating configuration...</p>
+                    </div>
+                {:else}
+                    <div class="migration-status">
+                        <h3>Migration Status: {migrationStatus}</h3>
+                    </div>
+
+                    {#if results.length > 0}
+                        <div class="results-container">
+                            {#each results as config}
+                                <div class="config-section">
+                                    <h3>{config.name}</h3>
+                                    <table class="results-table">
+                                        <thead>
+                                            <tr>
+                                                <th>Config Item</th>
+                                                <th>Migration Status</th>
+                                                <th>Current Value</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {#each config.diffs as diff}
+                                                <tr>
+                                                    <td>{diff.key}</td>
+                                                    <td>{diff.source_value}</td>
+                                                    <td>{diff.dest_value}</td>
+                                                </tr>
+                                            {/each}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            {/each}
+                        </div>
+                    {/if}
+                {/if}
+            </div>
+        {/if}
+    </div>
 </div>
 
 <style>
-    .container {
+    .migration-container {
         max-width: 800px;
         margin: 0 auto;
-        padding: 2rem 1rem;
-        font-family:
-            system-ui,
-            -apple-system,
-            BlinkMacSystemFont,
-            "Segoe UI",
-            Roboto,
-            sans-serif;
-        line-height: 1.6;
-        color: #2d3748;
+        padding: 20px;
+        font-family: Arial, sans-serif;
+    }
+
+    h1 {
+        text-align: center;
+        color: #333;
+        margin-bottom: 30px;
+    }
+
+    .accordion-item {
+        margin-bottom: 10px;
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        overflow: hidden;
+    }
+
+    .accordion-header {
+        width: 100%;
+        padding: 15px 20px;
+        background: #f8f9fa;
+        border: none;
+        text-align: left;
+        cursor: pointer;
+        font-size: 16px;
+        font-weight: 600;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        transition: background-color 0.3s;
+    }
+
+    .accordion-header:hover:not(.disabled) {
+        background: #e9ecef;
+    }
+
+    .accordion-header.active {
+        background: #007bff;
+        color: white;
+    }
+
+    .accordion-header.disabled {
+        background: #f8f9fa;
+        color: #6c757d;
+        cursor: not-allowed;
+    }
+
+    .accordion-icon {
+        font-size: 18px;
+        font-weight: bold;
+    }
+
+    .accordion-content {
+        padding: 20px;
+        background: white;
+        border-top: 1px solid #ddd;
     }
 
     .form-group {
-        margin-bottom: 1.5rem;
+        margin-bottom: 20px;
+    }
+
+    label {
+        display: block;
+        margin-bottom: 5px;
+        font-weight: 600;
+        color: #333;
+    }
+
+    select {
+        width: 100%;
+        padding: 10px;
+        border: 2px solid #ddd;
+        border-radius: 4px;
+        font-size: 14px;
+    }
+
+    select:focus {
+        outline: none;
+        border-color: #007bff;
+    }
+
+    .arrow-container {
+        text-align: center;
+        margin: 20px 0;
+    }
+
+    .animated-arrow {
+        font-size: 24px;
+        color: #007bff;
+        animation: bounce 2s infinite;
+    }
+
+    @keyframes bounce {
+        0%,
+        20%,
+        50%,
+        80%,
+        100% {
+            transform: translateY(0);
+        }
+        40% {
+            transform: translateY(-10px);
+        }
+        60% {
+            transform: translateY(-5px);
+        }
+    }
+
+    .config-options {
+        margin-bottom: 20px;
+    }
+
+    .checkbox-label {
         display: flex;
         align-items: center;
-        gap: 0.75rem;
-        flex-wrap: wrap;
-        flex-direction: column;
-    }
-
-    .label {
-        font-weight: 600;
-        font-size: 1rem;
-        color: #4a5568;
-        margin: 0;
-    }
-
-    .btn {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        padding: 0.75rem 1.5rem;
-        border: 2px solid transparent;
-        border-radius: 0.5rem;
-        font-size: 1rem;
-        font-weight: 500;
-        text-decoration: none;
+        padding: 10px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
         cursor: pointer;
-        transition: all 0.2s ease-in-out;
-        min-width: 120px;
-        position: relative;
+        transition: background-color 0.3s;
     }
 
-    .btn:focus {
-        outline: none;
-        box-shadow: 0 0 0 3px rgba(66, 153, 225, 0.3);
+    .checkbox-label:hover {
+        background: #f8f9fa;
+    }
+
+    .checkbox-label input[type="checkbox"] {
+        margin-right: 10px;
+        width: 16px;
+        height: 16px;
     }
 
     .btn-primary {
-        background-color: #3182ce;
+        background: #007bff;
         color: white;
-        border-color: #3182ce;
-    }
-
-    .btn-primary:hover:not(:disabled) {
-        background-color: #2c5282;
-        border-color: #2c5282;
-        transform: translateY(-1px);
-        box-shadow: 0 4px 12px rgba(49, 130, 206, 0.3);
-    }
-
-    .btn-primary:active:not(:disabled) {
-        transform: translateY(0);
-        box-shadow: 0 2px 4px rgba(49, 130, 206, 0.3);
-    }
-
-    .btn:disabled {
-        opacity: 0.6;
-        cursor: not-allowed;
-        transform: none;
-        box-shadow: none;
-    }
-
-    .alert {
-        margin-top: 1.5rem;
-        padding: 1rem 1.25rem;
-        border-radius: 0.5rem;
-        border: 1px solid;
-        font-size: 0.95rem;
-    }
-
-    .alert-error {
-        background-color: #fed7d7;
-        border-color: #feb2b2;
-        color: #c53030;
-    }
-
-    .alert-success {
-        background-color: #c6f6d5;
-        border-color: #9ae6b4;
-        color: #2f855a;
-    }
-
-    .alert-title {
+        border: none;
+        padding: 12px 24px;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 16px;
         font-weight: 600;
-        font-size: 1.1rem;
-        margin: 0 0 0.75rem 0;
-        color: inherit;
+        transition: background-color 0.3s;
     }
 
-    .code-block {
-        background-color: #f7fafc;
-        border: 1px solid #e2e8f0;
-        border-radius: 0.375rem;
-        padding: 1rem;
-        font-family: "Fira Code", "Monaco", "Consolas", monospace;
-        font-size: 0.875rem;
-        line-height: 1.5;
-        overflow-x: auto;
-        margin: 0;
-        color: #2d3748;
-        white-space: pre-wrap;
-        word-break: break-word;
+    .btn-primary:hover {
+        background: #0056b3;
     }
 
-    /* Responsive design */
-    @media (max-width: 640px) {
-        .container {
-            padding: 1rem 0.75rem;
-        }
-
-        .form-group {
-            flex-direction: column;
-            align-items: flex-start;
-            gap: 0.5rem;
-        }
-
-        .btn {
-            width: 100%;
-            min-width: auto;
-        }
-
-        .code-block {
-            font-size: 0.8rem;
-            padding: 0.75rem;
-        }
+    .migrate-btn {
+        margin-top: 20px;
+        width: 100%;
     }
 
-    /* High contrast mode support */
-    @media (prefers-contrast: high) {
-        .btn-primary {
-            border-width: 3px;
-        }
+    .error {
+        color: #dc3545;
+        font-size: 14px;
+        margin-top: 5px;
+    }
 
-        .alert {
-            border-width: 2px;
+    .success {
+        color: #28a745;
+        font-size: 14px;
+        margin-top: 5px;
+    }
+
+    .loading {
+        text-align: center;
+        padding: 40px;
+    }
+
+    .spinner {
+        width: 40px;
+        height: 40px;
+        border: 4px solid #f3f3f3;
+        border-top: 4px solid #007bff;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+        margin: 0 auto 20px;
+    }
+
+    @keyframes spin {
+        0% {
+            transform: rotate(0deg);
+        }
+        100% {
+            transform: rotate(360deg);
         }
     }
 
-    /* Reduced motion support */
-    @media (prefers-reduced-motion: reduce) {
-        .btn {
-            transition: none;
-        }
-
-        .btn-primary:hover:not(:disabled) {
-            transform: none;
-        }
-
-        .btn-primary:active:not(:disabled) {
-            transform: none;
-        }
+    .results-container {
+        margin-top: 20px;
     }
 
-    /* Print styles */
-    @media print {
-        .btn {
-            display: none;
-        }
+    .config-section {
+        margin-bottom: 30px;
+    }
 
-        .alert {
-            border: 2px solid #000;
-            background: white !important;
-            color: #000 !important;
-        }
+    .config-section h3 {
+        margin-bottom: 15px;
+        color: #333;
+    }
 
-        .code-block {
-            border: 1px solid #000;
-            background: white !important;
-        }
+    .results-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-bottom: 20px;
+    }
+
+    .results-table th,
+    .results-table td {
+        padding: 12px;
+        text-align: left;
+        border: 1px solid #ddd;
+    }
+
+    .results-table th {
+        background: #f8f9fa;
+        font-weight: 600;
+    }
+
+    .results-table tr:nth-child(even) {
+        background: #f8f9fa;
+    }
+
+    .migration-status {
+        margin-bottom: 20px;
+    }
+
+    .migration-status h3 {
+        color: #28a745;
+        text-align: center;
     }
 </style>
