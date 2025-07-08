@@ -9,12 +9,9 @@
     const auth_state = $state({
         is_authenticated: false,
         is_loading: true, // Start with loading true to prevent flash
-        has_checked: false,
     });
 
     async function check_auth_status() {
-        if (auth_state.has_checked) return;
-
         try {
             const response = await fetch("http://localhost:10000/auth", {
                 method: "GET",
@@ -28,7 +25,6 @@
             }
             let response_text = await response.json();
             auth_state.is_authenticated = response_text;
-            auth_state.has_checked = true;
         } catch (err) {
             console.error("Auth check error:", err);
             auth_state.is_authenticated = false;
