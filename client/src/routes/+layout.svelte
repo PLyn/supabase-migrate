@@ -1,5 +1,6 @@
 <script>
     import "../app.css";
+    import AuthComponent from "$lib/components/auth_component.svelte";
 </script>
 
 <!-- HTML -->
@@ -16,7 +17,7 @@
                     <a href="/metrics" class="nav-link"> Metrics </a>
                 </nav>
 
-                <a href="/login" class="nav-link"> Login </a>
+                <AuthComponent />
             </div>
         </div>
     </header>
@@ -76,7 +77,7 @@
         align-items: center;
         justify-content: space-between;
         padding: 1rem 0;
-        gap: 1rem;
+        gap: 1.5rem; /* Increased gap for better spacing */
     }
 
     .site-title {
@@ -122,6 +123,11 @@
         flex: 1;
         display: flex;
         flex-direction: column;
+        padding: 2rem 1rem; /* Added padding to main content area */
+        max-width: 1200px;
+        margin: 0 auto;
+        width: 100%;
+        box-sizing: border-box;
     }
 
     /* Mobile Responsive */
@@ -147,6 +153,10 @@
         .nav-link {
             font-size: 0.95rem;
         }
+
+        .main {
+            padding: 1.5rem 1rem; /* Adjust padding for mobile */
+        }
     }
 
     @media (max-width: 480px) {
@@ -166,6 +176,10 @@
         .site-title {
             font-size: 1.25rem;
         }
+
+        .main {
+            padding: 1rem 0.75rem; /* Further adjust padding for smaller screens */
+        }
     }
 
     /* Tablet and Small Desktop */
@@ -177,12 +191,18 @@
         .nav {
             gap: 1.5rem;
         }
+        .main {
+            padding: 2rem 1.5rem;
+        }
     }
 
     /* Large Desktop */
     @media (min-width: 1200px) {
         .header-container {
             padding: 0 2rem;
+        }
+        .main {
+            padding: 2rem 2rem;
         }
     }
 
