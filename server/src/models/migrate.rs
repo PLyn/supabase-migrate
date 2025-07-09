@@ -1,20 +1,24 @@
 use serde::{Deserialize, Serialize};
+use ts_rs::TS;
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct Project {
+#[derive(Debug, Serialize, Deserialize, Clone, TS)]
+#[ts(export)]
+pub struct ProjectList {
     pub id: String,
     pub name: String,
     pub region: String,
     pub status: String,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, Default, TS)]
+#[ts(export)]
 pub struct ProjectDiffs {
     pub name: String,
     pub diffs: Vec<ProjectDiffEntry>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, Default, TS)]
+#[ts(export)]
 pub struct ProjectDiffEntry {
     pub key: String,
     pub source_value: String,

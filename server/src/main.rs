@@ -9,7 +9,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Router,
         routing::{get, post},
     };
-    use handlers::migrate::preview_handler;
+    use handlers::migrate::{preview_handler, project_list_handler};
     use handlers::oauth::{callback_handler, login_handler};
     use handlers::test_handler;
     use models::{AppConfig, AppState};
@@ -51,6 +51,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/preview", get(preview_handler))
         .route("/auth", get(status_handler))
         .route("/signout", post(signout_handler))
+        .route("/projects", get(project_list_handler))
         .route("/connect-supabase/login", get(login_handler))
         .route("/connect-supabase/oauth2/callback", get(callback_handler))
         .layer(cors) // Add CORS layer

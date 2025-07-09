@@ -1,26 +1,15 @@
 <script lang="ts">
-    interface Post {
-        id: string;
-        name: string;
-        region: string;
-        status: string;
-    }
-
-    interface Config {
-        diffs: Array<{
-            key: string;
-            source_value: string;
-            dest_value: string;
-        }>;
-    }
+    import { type ProjectList } from "$lib/bindings/ProjectList";
+    import { type ProjectDiffs } from "$lib/bindings/ProjectDiffs";
+    import { type ProjectDiffEntry } from "$lib/bindings/ProjectDiffEntry";
 
     // State using runes
-    let projects = $state<Post[]>([]);
+    let projects = $state<ProjectList[]>([]);
     let sourceId = $state("");
     let destId = $state("");
     let authConfigEnabled = $state(false);
     let loading = $state(false);
-    let results = $state<{ name: string; diffs: Config["diffs"] }[]>([]);
+    let results = $state<ProjectDiffs[]>([]);
     let migrationStatus = $state("");
     let activeAccordion = $state(1);
 
@@ -37,29 +26,27 @@
     let canPreview = $derived(projectsValid && authConfigEnabled);
 
     // Mock functions with proper types
-    async function getProjects(): Promise<Post[]> {
-        return [
-            {
-                id: "proj1",
-                name: "Project One",
-                region: "us-east-1",
-                status: "ACTIVE",
-            },
-            {
-                id: "proj2",
-                name: "Project Two",
-                region: "us-west-2",
-                status: "ACTIVE",
-            },
-            {
-                id: "proj3",
-                name: "Project Three",
-                region: "eu-west-1",
-                status: "INACTIVE",
-            },
-        ];
+    async function getProjects(): Promise<ProjectList[]> {
+        try {
+            const response = await fetch("http://localhost:10000/projects", {
+                method: "GET",
+                credentials: "include",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+            });
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            let response_json = await response.json();
+            return response_json;
+        } catch (err) {
+            console.error("Get projects error:", err);
+            return [];
+        }
     }
 
+    /*
     async function generatePreview(
         sourceId: string,
         destId: string,
@@ -151,6 +138,7 @@
             activeAccordion = 4;
         }
     }
+    */
 
     function toggleAccordion(section: number) {
         activeAccordion = activeAccordion === section ? 0 : section;
@@ -270,7 +258,8 @@
                 </div>
 
                 {#if authConfigEnabled}
-                    <button class="btn-primary" onclick={handlePreview}>
+                    <button class="btn-primary">
+                        <!--  onclick={handlePreview} -->
                         Preview Changes
                     </button>
                 {/if}
@@ -325,10 +314,8 @@
                             </div>
                         {/each}
 
-                        <button
-                            class="btn-primary migrate-btn"
-                            onclick={handleMigrate}
-                        >
+                        <button class="btn-primary migrate-btn">
+                            <!-- onclick={handleMigrate} -->
                             Migrate Configuration!
                         </button>
                     </div>

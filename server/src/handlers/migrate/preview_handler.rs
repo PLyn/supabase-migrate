@@ -2,7 +2,6 @@ use crate::models::AppState;
 use crate::models::migrate::{ProjectDiffEntry, ProjectDiffs};
 
 use axum::{
-    Json,
     extract::{Query, State},
     http::StatusCode,
     response::IntoResponse,
@@ -19,10 +18,10 @@ pub struct PreviewQuery {
     pub source_id: String,
     pub dest_id: String,
     pub auth: bool,
-    pub postgrest: Option<bool>,
-    pub edge_functions: Option<bool>,
-    pub secrets: Option<bool>,
-    pub postgres: Option<bool>,
+    pub postgrest: bool,
+    pub edge_functions: bool,
+    pub secrets: bool,
+    pub postgres: bool,
 }
 
 // Define the response structure
@@ -36,6 +35,8 @@ pub async fn preview_handler(
     Query(params): Query<PreviewQuery>,
     session: Session,
 ) -> impl IntoResponse {
+    eprintln!("params: {:?}", params);
+
     let token_result: Result<Option<String>, Error> = session.get("supabase_access_token").await;
     let Ok(Some(token)) = token_result else {
         return (
@@ -44,130 +45,87 @@ pub async fn preview_handler(
         );
     };
 
-    let mut project_config: Vec<ProjectDiffs> = Vec::new();
-    let mut config_json: Vec<(String, String, String)> = Vec::new();
+    let mut project_config: [ProjectDiffs; 5] = std::array::from_fn(|_| Default::default());
+    let mut index: usize = 0;
+
+    let (mut status, mut message) = (StatusCode::OK, String::new());
 
     if params.auth {
         let src_url = format!("/projects/{}/config/auth", params.source_id);
-        let Ok(src_cfg) = mgmt_api_get(&token, src_url).await else {
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                format!("Error fetching source auth config"),
-            );
-        };
-
         let dest_url = format!("/projects/{}/config/auth", params.dest_id);
-        let Ok(dest_cfg) = mgmt_api_get(&token, dest_url).await else {
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                format!("Error fetching destination auth config"),
-            );
-        };
-        config_json.push(("Auth".to_string(), src_cfg, dest_cfg));
-    }
 
-    // Check Auth config
-    /* if params.auth.unwrap_or(false) {
-        let source_config = mgmt_api_get(
+        (status, message) = process_config_diffs(
             &session,
-            format!("/projects/{}/config/auth", params.source_id),
+            &token,
+            src_url,
+            dest_url,
+            &mut project_config,
+            &mut index,
         )
-        .await
-        .map_err(|e| PreviewError::ApiError(format!("Failed to get auth config: {:?}", e)))?;
-        let dest_config = mgmt_api_get(
-            &session,
-            format!("/projects/{}/config/auth", params.dest_id),
-        )
-        .await
-        .map_err(|e| PreviewError::ApiError(format!("Failed to get auth config: {:?}", e)))?;
-        config_json.push(("Auth".to_string(), source_config, dest_config));
-    }
+        .await;
 
-    // Check Postgrest config
-    if params.postgrest.unwrap_or(false) {
-        let source_config = mgmt_api_get(
-            &session,
-            format!("/projects/{}/postgrest", params.source_id),
-        )
-        .await
-        .map_err(|e| PreviewError::ApiError(format!("Failed to get postgrest config: {:?}", e)))?;
-        let dest_config = mgmt_api_get(&session, format!("/projects/{}/postgrest", params.dest_id))
-            .await
-            .map_err(|e| {
-                PreviewError::ApiError(format!("Failed to get postgrest config: {:?}", e))
-            })?;
-        config_json.push(("Postgrest".to_string(), source_config, dest_config));
-    }
-
-    // Check Edge Functions config
-    if params.edge_functions.unwrap_or(false) {
-        let source_config = mgmt_api_get(
-            &session,
-            format!("/projects/{}/functions", params.source_id),
-        )
-        .await
-        .map_err(|e| PreviewError::ApiError(format!("Failed to get functions config: {:?}", e)))?;
-        let dest_config = mgmt_api_get(&session, format!("/projects/{}/functions", params.dest_id))
-            .await
-            .map_err(|e| {
-                PreviewError::ApiError(format!("Failed to get functions config: {:?}", e))
-            })?;
-        config_json.push(("EdgeFunctions".to_string(), source_config, dest_config));
-    }
-
-    // Check Secrets config
-    if params.secrets.unwrap_or(false) {
-        let source_config =
-            mgmt_api_get(&session, format!("/projects/{}/secrets", params.source_id))
-                .await
-                .map_err(|e| {
-                    PreviewError::ApiError(format!("Failed to get secrets config: {:?}", e))
-                })?;
-        let dest_config = mgmt_api_get(&session, format!("/projects/{}/secrets", params.dest_id))
-            .await
-            .map_err(|e| {
-                PreviewError::ApiError(format!("Failed to get secrets config: {:?}", e))
-            })?;
-        config_json.push(("Secrets".to_string(), source_config, dest_config));
-    }
-
-    // Check Postgres config
-    if params.postgres.unwrap_or(false) {
-        let url = "/config/database/postgres".to_string();
-        let source_config =
-            mgmt_api_get(&session, format!("/projects/{}{}", params.source_id, url))
-                .await
-                .map_err(|e| {
-                    PreviewError::ApiError(format!("Failed to get postgres config: {:?}", e))
-                })?;
-        let dest_config = mgmt_api_get(&session, format!("/projects/{}{}", params.dest_id, url))
-            .await
-            .map_err(|e| {
-                PreviewError::ApiError(format!("Failed to get postgres config: {:?}", e))
-            })?;
-        config_json.push(("Postgres".to_string(), source_config, dest_config));
-    }
-
-    // Process each config and generate diffs
-    for (service, source_json, dest_json) in config_json {
-        let source: Value = serde_json::from_str(&source_json)?;
-        let dest: Value = serde_json::from_str(&dest_json)?;
-
-        let project_config_entry = json_diff(service.clone(), source.clone(), dest).await?;
-
-        if let Some(config_entry) = project_config_entry {
-            project_config.push(config_entry);
-        }
-
-        // Store in session (optional - you might want to remove this if not needed)
-        if let Err(e) = session.insert(&service, source_json).await {
-            eprintln!("Failed to insert preview results into session: {:?}", e);
-            // Don't fail the request for session errors, just log
+        if status != StatusCode::OK {
+            return (status, message);
         }
     }
-    */
 
-    (StatusCode::NOT_FOUND, format!("Not Found:"))
+    (status, message)
+}
+
+pub async fn process_config_diffs(
+    session: &Session,
+    token: &String,
+    src_url: String,
+    dest_url: String,
+    project_config: &mut [ProjectDiffs; 5],
+    index: &mut usize,
+) -> (reqwest::StatusCode, String) {
+    let Ok(src_cfg) = mgmt_api_get(&token, src_url).await else {
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("Error fetching source auth config"),
+        );
+    };
+
+    let Ok(dest_cfg) = mgmt_api_get(&token, dest_url).await else {
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("Error fetching destination auth config"),
+        );
+    };
+
+    let Ok(source) = serde_json::from_str(&src_cfg) else {
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("Error parsing source auth config"),
+        );
+    };
+
+    let Ok(dest) = serde_json::from_str(&dest_cfg) else {
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("Error parsing destination auth config"),
+        );
+    };
+
+    let Some(config_entry) = json_diff("Auth".to_string(), source, dest).await else {
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("Error parsing auth config"),
+        );
+    };
+
+    project_config[*index] = config_entry;
+    *index += 1;
+
+    if let Err(e) = session.insert("Auth", &src_cfg).await {
+        eprintln!("Failed to insert preview results into session: {:?}", e);
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("Failed to insert preview results into session"),
+        );
+    }
+    (StatusCode::OK, "Auth config processed".to_string())
 }
 
 pub async fn mgmt_api_get(token: &String, url: String) -> Result<String, String> {
