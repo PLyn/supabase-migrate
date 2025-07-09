@@ -1,6 +1,17 @@
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
+#[derive(Debug, Deserialize)]
+pub struct MigrateProjectStruct {
+    pub source_id: String,
+    pub dest_id: String,
+    pub auth: bool,
+    pub postgrest: bool,
+    pub edge_functions: bool,
+    pub secrets: bool,
+    pub postgres: bool,
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone, TS)]
 #[ts(export)]
 pub struct ProjectList {

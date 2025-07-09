@@ -10,7 +10,7 @@ use axum::{
 use tower_sessions::Session;
 use tower_sessions::session::Error;
 
-pub async fn preview_handler(
+pub async fn migrate_handler(
     State(_app_state): State<AppState>,
     Query(params): Query<MigrateProjectStruct>,
     session: Session,
@@ -25,6 +25,7 @@ pub async fn preview_handler(
     let mut project_config: Vec<ProjectDiffs> = Vec::with_capacity(5);
 
     if params.auth {
+        // TODO grab config from session - do migration - remove config from session
         let src_url = format!("/projects/{}/config/auth", params.source_id);
         let dest_url = format!("/projects/{}/config/auth", params.dest_id);
 
@@ -60,7 +61,6 @@ pub async fn process_config_diffs(
 
     if let Err(e) = session.insert("Auth", &src_cfg).await {
         eprintln!("Failed to insert preview results into session: {:?}", e);
-        return Err("Error saving auth config changes".to_string());
     }
 
     Ok(String::new())
