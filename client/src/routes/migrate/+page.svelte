@@ -28,6 +28,7 @@
     // Mock functions with proper types
     async function getProjects(): Promise<ProjectList[]> {
         try {
+            loading = true;
             const response = await fetch("http://localhost:10000/projects", {
                 method: "GET",
                 credentials: "include",
@@ -43,42 +44,69 @@
         } catch (err) {
             console.error("Get projects error:", err);
             return [];
+        } finally {
+            loading = false;
+        }
+    }
+
+    async function handlePreview() {
+        try {
+            results = await generatePreview(
+                sourceId,
+                destId,
+                authConfigEnabled,
+            );
+            activeAccordion = 3;
+        } catch (error) {
+            console.error("Preview failed:", error);
+        }
+    }
+
+    async function generatePreview(
+        sourceId: string,
+        destId: string,
+        authConfigEnabled: boolean,
+    ): Promise<ProjectDiffs[]> {
+        try {
+            loading = true;
+
+            // Set default values for boolean parameters
+            const params = new URLSearchParams({
+                source_id: sourceId,
+                dest_id: destId,
+                auth: authConfigEnabled.toString(),
+                postgrest: "false",
+                edge_functions: "false",
+                secrets: "false",
+                postgres: "false",
+            });
+
+            const response = await fetch(
+                `http://localhost:10000/preview?${params}`,
+                {
+                    method: "GET",
+                    credentials: "include",
+                    headers: {
+                        "Content-Type": "application/json",
+                    },
+                },
+            );
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
+            let response_json = await response.json();
+            return response_json;
+        } catch (err) {
+            console.error("Get projects error:", err);
+            return [];
+        } finally {
+            loading = false;
         }
     }
 
     /*
-    async function generatePreview(
-        sourceId: string,
-        destId: string,
-    ): Promise<{ name: string; diffs: Config["diffs"] }[]> {
-        loading = true;
-        await new Promise((resolve) => setTimeout(resolve, 1000));
-        loading = false;
-
-        return [
-            {
-                name: "Auth Configuration",
-                diffs: [
-                    {
-                        key: "jwt_secret",
-                        source_value: "old_secret_123",
-                        dest_value: "new_secret_456",
-                    },
-                    {
-                        key: "jwt_expiry",
-                        source_value: "3600",
-                        dest_value: "7200",
-                    },
-                    {
-                        key: "enable_signup",
-                        source_value: "true",
-                        dest_value: "false",
-                    },
-                ],
-            },
-        ];
-    }
-
     async function migrateConfig(
         results: { name: string; diffs: Config["diffs"] }[],
         sourceId: string,
@@ -110,16 +138,6 @@
                 ],
             },
         ];
-    }
-
-    // Event handlers
-    async function handlePreview() {
-        try {
-            results = await generatePreview(sourceId, destId);
-            activeAccordion = 3;
-        } catch (error) {
-            console.error("Preview failed:", error);
-        }
     }
 
     async function handleMigrate() {
@@ -258,8 +276,7 @@
                 </div>
 
                 {#if authConfigEnabled}
-                    <button class="btn-primary">
-                        <!--  onclick={handlePreview} -->
+                    <button class="btn-primary" onclick={handlePreview}>
                         Preview Changes
                     </button>
                 {/if}
