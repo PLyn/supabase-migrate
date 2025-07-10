@@ -3,7 +3,6 @@
     import AuthComponent from "$lib/components/auth_component.svelte";
 </script>
 
-<!-- HTML -->
 <div class="app">
     <header class="header">
         <div class="header-container">
@@ -13,8 +12,6 @@
                 <nav class="nav" aria-label="Main navigation">
                     <a href="/" class="nav-link"> Home </a>
                     <a href="/migrate" class="nav-link"> Migrate </a>
-                    <a href="/monitor" class="nav-link"> Monitor </a>
-                    <a href="/metrics" class="nav-link"> Metrics </a>
                 </nav>
 
                 <AuthComponent />
@@ -27,7 +24,6 @@
     </main>
 </div>
 
-<!-- CSS -->
 <style>
     :global(*, *::before, *::after) {
         box-sizing: border-box;

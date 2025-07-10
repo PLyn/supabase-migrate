@@ -1,35 +1,35 @@
 {
-	"name": "supabasemm-svelte",
-	"private": true,
-	"version": "0.0.1",
-	"type": "module",
-	"scripts": {
-		"dev": "vite dev",
-		"build": "vite build",
-		"preview": "vite preview",
-		"prepare": "svelte-kit sync || echo ''",
-		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
-		"check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
-		"format": "prettier --write .",
-		"lint": "prettier --check . && eslint ."
-	},
-	"devDependencies": {
-		"@fontsource/fira-mono": "^5.2.6",
-		"@neoconfetti/svelte": "^2.2.2",
-		"@sveltejs/adapter-node": "^5.2.13",
-		"@sveltejs/kit": "^2.22.3",
-		"@sveltejs/vite-plugin-svelte": "^5.1.0",
-		"svelte": "^5.35.5",
-		"svelte-check": "^4.2.2",
-		"typescript": "^5.8.3",
-		"vite": "^7.0.3"
-	},
-	"pnpm": {
-		"onlyBuiltDependencies": [
-			"esbuild"
-		]
-	},
-	"dependencies": {
-		"@supabase/supabase-js": "^2.50.4"
-	}
+  "name": "supabasemm-svelte",
+  "private": true,
+  "version": "0.0.1",
+  "type": "module",
+  "scripts": {
+    "dev": "vite dev",
+    "build": "vite build",
+    "preview": "vite preview",
+    "prepare": "svelte-kit sync || echo ''",
+    "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
+    "check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
+    "format": "prettier --write .",
+    "lint": "prettier --check . && eslint ."
+  },
+  "devDependencies": {
+    "@fontsource/fira-mono": "^5.2.6",
+    "@neoconfetti/svelte": "^2.2.2",
+    "@sveltejs/kit": "^2.22.4",
+    "@sveltejs/vite-plugin-svelte": "^5.1.0",
+    "svelte": "^5.35.5",
+    "svelte-check": "^4.2.2",
+    "typescript": "^5.8.3",
+    "vite": "^7.0.3",
+    "@sveltejs/adapter-static": "^3.0.8"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild"
+    ]
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.50.4"
+  }
 }

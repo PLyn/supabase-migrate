@@ -2,6 +2,7 @@
     import { type ProjectList } from "$lib/bindings/ProjectList";
     import { type ProjectDiffs } from "$lib/bindings/ProjectDiffs";
     import { type ProjectDiffEntry } from "$lib/bindings/ProjectDiffEntry";
+    import { API_BASE_URL } from "$lib/config";
 
     // State using runes
     let projects = $state<ProjectList[]>([]);
@@ -36,7 +37,7 @@
     async function getProjects(): Promise<ProjectList[]> {
         try {
             loading = true;
-            const response = await fetch("http://localhost:10000/projects", {
+            const response = await fetch(`${API_BASE_URL}/projects`, {
                 method: "GET",
                 credentials: "include",
                 headers: {
@@ -63,15 +64,24 @@
         if (!canPreview) return;
 
         try {
+            // Clear previous results
+            results = [];
+            
+            // Move to preview accordion and show loading
+            step2Completed = true;
+            activeAccordion = 3;
+            
+            // Generate preview
             results = await generatePreview(
                 sourceId,
                 destId,
                 authConfigEnabled,
             );
+            
             step3Completed = true;
-            activeAccordion = 3;
         } catch (error) {
             console.error("Preview failed:", error);
+            // Optionally show error state here
         }
     }
 
@@ -95,7 +105,7 @@
             });
 
             const response = await fetch(
-                `http://localhost:10000/preview?${params}`,
+                `${API_BASE_URL}/preview?${params}`,
                 {
                     method: "GET",
                     credentials: "include",
@@ -140,7 +150,7 @@
 
     function handleConfigNext() {
         if (authConfigEnabled) {
-            step2Completed = true;
+            // Just trigger the preview, which will handle the accordion transition
             handlePreview();
         }
     }
@@ -189,7 +199,7 @@
                             <span class="step-title">Project Selection</span>
                             {#if step1Completed}
                                 <span class="step-summary"
-                                    >{sourceId} ({sourceId}) --> {destId} ({destId})</span
+                                    >{sourceProject?.name} ({sourceId}) --> {destProject?.name} ({destId})</span
                                 >
                             {/if}
                         </div>
@@ -343,7 +353,7 @@
                                 >Select Configuration Items</span
                             >
                             {#if step2Completed}
-                                <span class="step-summary">"Auth selected"</span
+                                <span class="step-summary">Selected: Auth</span
                                 >
                             {/if}
                         </div>
@@ -380,10 +390,10 @@
                             <button
                                 class="btn-primary"
                                 onclick={handleConfigNext}
-                                disabled={!authConfigEnabled}
+                                disabled={!authConfigEnabled || loading}
                                 aria-label="Preview configuration changes"
                             >
-                                Preview Changes
+                                {loading ? 'Generating Preview...' : 'Preview Changes'}
                             </button>
                         </div>
                     </div>
@@ -500,12 +510,16 @@
                                     {/each}
 
                                     <button
-                                        class="btn-primary btn-migrate"
+                                        class="btn-primary"
                                         aria-label="Start migration process"
                                     >
                                         Migrate Configuration
                                     </button>
                                 </div>
+                            </div>
+                        {:else if !loading}
+                            <div class="empty-state">
+                                <p>No configuration differences found.</p>
                             </div>
                         {/if}
                     </div>
@@ -731,8 +745,8 @@
 
     .step-info {
         display: flex;
-        flex-direction: column;
-        gap: 0.25rem;
+        flex-direction: row;
+        gap: 0.5rem;
         flex: 1;
     }
 
@@ -742,14 +756,10 @@
     }
 
     .step-summary {
-        font-size: 0.875rem;
         color: #718096;
-        font-weight: 400;
+        font-weight: 600;
         line-height: 1.4;
-    }
-
-    .accordion-header.active .step-summary {
-        color: rgba(255, 255, 255, 0.9);
+        margin-left: 10px;
     }
 
     .step-number {
@@ -1106,6 +1116,13 @@
         to {
             transform: rotate(360deg);
         }
+    }
+
+    /* Empty state */
+    .empty-state {
+        text-align: center;
+        padding: 3rem;
+        color: #718096;
     }
 
     /* Results */
