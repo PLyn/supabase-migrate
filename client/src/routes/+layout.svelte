@@ -124,7 +124,7 @@
         display: flex;
         flex-direction: column;
         padding: 2rem 1rem; /* Added padding to main content area */
-        max-width: 1200px;
+        max-width: 95%;
         margin: 0 auto;
         width: 100%;
         box-sizing: border-box;
