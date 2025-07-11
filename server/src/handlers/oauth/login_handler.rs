@@ -32,9 +32,7 @@ pub async fn login_handler(
         csrf_token_secret: Some(csrf_token.secret().to_string()),
     };
 
-    // Store the data in the session
     session.insert("oauth_data", session_data).await.unwrap();
 
-    // Instead of redirecting, return the URL as JSON
     Redirect::to(&constructed_url).into_response()
 }
